@@ -6,6 +6,7 @@ $activePage = $activePage ?? '';
 
 $navLinks = [
     'accueil' => ['label' => 'Accueil', 'href' => 'index.php'],
+    'sports'  => ['label' => 'Nos sports', 'href' => 'sports.php'],
     'qrcode'  => ['label' => 'Mon QR code', 'href' => 'qrcode.php'],
 ];
 ?>

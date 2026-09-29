@@ -9,3 +9,20 @@ define('QR_VALIDITY', 60);
 
 // Fixe tant qu'il n'y a pas de comptes
 define('MEMBER_ID', 1);
+
+function getDatabaseConnection(): PDO
+{
+	$host = getenv('DB_HOST') ?: '127.0.0.1';
+	$database = getenv('DB_NAME') ?: 'fitpass';
+	$username = getenv('DB_USER') ?: 'root';
+	$password = getenv('DB_PASSWORD') ?: '';
+
+	$connection = new PDO(
+		"mysql:host=$host;dbname=$database;charset=utf8mb4",
+		$username,
+		$password,
+		[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+	);
+
+	return $connection;
+}

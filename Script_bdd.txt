@@ -1,0 +1,178 @@
+-- Désactivation temporaire des contraintes de clés pour éviter les erreurs lors de l'import
+SET FOREIGN_KEY_CHECKS = 0;
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+-- --------------------------------------------------------
+-- 1. Table centrale d'authentification
+-- --------------------------------------------------------
+DROP TABLE IF EXISTS `reservations`;
+DROP TABLE IF EXISTS `cours`;
+DROP TABLE IF EXISTS `sports`;
+DROP TABLE IF EXISTS `categories`;
+DROP TABLE IF EXISTS `salles`;
+DROP TABLE IF EXISTS `admins`;
+DROP TABLE IF EXISTS `coachs`;
+DROP TABLE IF EXISTS `adherents`;
+DROP TABLE IF EXISTS `comptes`;
+
+CREATE TABLE `comptes` (
+  `id_compte` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `email` VARCHAR(191) NOT NULL,
+  `mot_de_passe_hash` VARCHAR(255) NOT NULL,
+  `role` ENUM('adherent', 'coach', 'admin') NOT NULL DEFAULT 'adherent',
+  `date_creation` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_compte`),
+  UNIQUE KEY `idx_comptes_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- 2. Tables spécialisées (Héritage 1-to-1)
+-- --------------------------------------------------------
+CREATE TABLE `adherents` (
+  `id_adherent` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id_compte` INT UNSIGNED NOT NULL,
+  `nom` VARCHAR(100) NOT NULL,
+  `prenom` VARCHAR(100) NOT NULL,
+  `adresse` VARCHAR(255) DEFAULT NULL,
+  `poids` DECIMAL(5,2) DEFAULT NULL COMMENT 'Poids en kg',
+  `taille` DECIMAL(5,2) DEFAULT NULL COMMENT 'Taille en cm',
+  PRIMARY KEY (`id_adherent`),
+  UNIQUE KEY `idx_adherents_id_compte` (`id_compte`),
+  CONSTRAINT `fk_adherents_compte` FOREIGN KEY (`id_compte`) 
+    REFERENCES `comptes` (`id_compte`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `coachs` (
+  `id_coach` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id_compte` INT UNSIGNED NOT NULL,
+  `nom` VARCHAR(100) NOT NULL,
+  `prenom` VARCHAR(100) NOT NULL,
+  `specialite` VARCHAR(150) DEFAULT NULL,
+  `bio` TEXT DEFAULT NULL,
+  PRIMARY KEY (`id_coach`),
+  UNIQUE KEY `idx_coachs_id_compte` (`id_compte`),
+  CONSTRAINT `fk_coachs_compte` FOREIGN KEY (`id_compte`) 
+    REFERENCES `comptes` (`id_compte`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `admins` (
+  `id_admin` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id_compte` INT UNSIGNED NOT NULL,
+  `nom` VARCHAR(100) NOT NULL,
+  `prenom` VARCHAR(100) NOT NULL,
+  `niveau_acces` VARCHAR(50) NOT NULL DEFAULT 'standard',
+  PRIMARY KEY (`id_admin`),
+  UNIQUE KEY `idx_admins_id_compte` (`id_compte`),
+  CONSTRAINT `fk_admins_compte` FOREIGN KEY (`id_compte`) 
+    REFERENCES `comptes` (`id_compte`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- 3. Gestion des infrastructures et disciplines
+-- --------------------------------------------------------
+CREATE TABLE `categories` (
+  `id_categorie` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `nom_categorie` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`id_categorie`),
+  UNIQUE KEY `idx_categories_nom` (`nom_categorie`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `sports` (
+  `id_sport` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id_categorie` INT UNSIGNED NOT NULL,
+  `nom_sport` VARCHAR(100) NOT NULL,
+  `description` TEXT DEFAULT NULL,
+  PRIMARY KEY (`id_sport`),
+  KEY `idx_sports_categorie` (`id_categorie`),
+  CONSTRAINT `fk_sports_categorie` FOREIGN KEY (`id_categorie`) 
+    REFERENCES `categories` (`id_categorie`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `salles` (
+  `id_salle` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `nom_salle` VARCHAR(100) NOT NULL,
+  `capacite` SMALLINT UNSIGNED NOT NULL,
+  `adresse` VARCHAR(255) DEFAULT NULL,
+  PRIMARY KEY (`id_salle`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- 4. Planning des cours collectifs
+-- --------------------------------------------------------
+CREATE TABLE `cours` (
+  `id_cours` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id_sport` INT UNSIGNED NOT NULL,
+  `id_coach` INT UNSIGNED NOT NULL,
+  `id_salle` INT UNSIGNED NOT NULL,
+  `date_debut` DATETIME NOT NULL,
+  `date_fin` DATETIME NOT NULL,
+  `nb_places_max` SMALLINT UNSIGNED NOT NULL,
+  PRIMARY KEY (`id_cours`),
+  KEY `idx_cours_sport` (`id_sport`),
+  KEY `idx_cours_coach` (`id_coach`),
+  KEY `idx_cours_salle` (`id_salle`),
+  CONSTRAINT `fk_cours_sport` FOREIGN KEY (`id_sport`) 
+    REFERENCES `sports` (`id_sport`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_cours_coach` FOREIGN KEY (`id_coach`) 
+    REFERENCES `coachs` (`id_coach`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_cours_salle` FOREIGN KEY (`id_salle`) 
+    REFERENCES `salles` (`id_salle`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- 5. Réservations des adhérents
+-- --------------------------------------------------------
+CREATE TABLE `reservations` (
+  `id_reservation` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id_cours` INT UNSIGNED NOT NULL,
+  `id_adherent` INT UNSIGNED NOT NULL,
+  `date_reservation` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `statut` ENUM('confirmee', 'annulee', 'liste_attente') NOT NULL DEFAULT 'confirmee',
+  PRIMARY KEY (`id_reservation`),
+  UNIQUE KEY `idx_cours_adherent_unique` (`id_cours`, `id_adherent`),
+  KEY `idx_reservations_adherent` (`id_adherent`),
+  CONSTRAINT `fk_reservations_cours` FOREIGN KEY (`id_cours`) 
+    REFERENCES `cours` (`id_cours`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_reservations_adherent` FOREIGN KEY (`id_adherent`) 
+    REFERENCES `adherents` (`id_adherent`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Données de test (optionnel)
+-- --------------------------------------------------------
+INSERT INTO `comptes` (`id_compte`, `email`, `mot_de_passe_hash`, `role`) VALUES
+(1, 'admin@basicfit.com', '$2y$10$abcdefghijklmnopqrstuv', 'admin'),
+(2, 'coach.marc@basicfit.com', '$2y$10$abcdefghijklmnopqrstuv', 'coach'),
+(3, 'adherent.lucas@email.com', '$2y$10$abcdefghijklmnopqrstuv', 'adherent');
+
+INSERT INTO `admins` (`id_compte`, `nom`, `prenom`, `niveau_acces`) VALUES
+(1, 'Dupont', 'Super', 'superadmin');
+
+INSERT INTO `coachs` (`id_compte`, `nom`, `prenom`, `specialite`, `bio`) VALUES
+(2, 'Martin', 'Marc', 'CrossFit & Cardio', 'Coach certifié BPJEPS depuis 5 ans.');
+
+INSERT INTO `adherents` (`id_compte`, `nom`, `prenom`, `adresse`, `poids`, `taille`) VALUES
+(3, 'Bernard', 'Lucas', '12 rue de la République', 78.50, 180.00);
+
+INSERT INTO `categories` (`id_categorie`, `nom_categorie`) VALUES
+(1, 'Cardio Training'),
+(2, 'Renforcement musculaire');
+
+INSERT INTO `sports` (`id_sport`, `id_categorie`, `nom_sport`, `description`) VALUES
+(1, 1, 'HIIT', 'Entraînement par intervalles à haute intensité'),
+(2, 2, 'Body Pump', 'Renforcement de l ensemble du corps avec barre et poids');
+
+INSERT INTO `salles` (`id_salle`, `nom_salle`, `capacite`, `adresse`) VALUES
+(1, 'Studio 1 - Cardio', 25, 'Rez-de-chaussée');
+
+INSERT INTO `cours` (`id_cours`, `id_sport`, `id_coach`, `id_salle`, `date_debut`, `date_fin`, `nb_places_max`) VALUES
+(1, 1, 1, 1, '2026-10-05 18:00:00', '2026-10-05 19:00:00', 20);
+
+INSERT INTO `reservations` (`id_cours`, `id_adherent`, `statut`) VALUES
+(1, 1, 'confirmee');
+
+-- Réactivation des contraintes
+SET FOREIGN_KEY_CHECKS = 1;
+COMMIT;

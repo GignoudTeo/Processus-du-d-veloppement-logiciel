@@ -1,0 +1,34 @@
+Taches du Sprint 01 (29/09) :
+- Page d'accueil  stylisé ( css javascript etc. ) avec QR code. -> Florian 
+- Mise en place d'une bdd pour les sports, les séances, cours, coachs, Utilisateur et les futurs comptes sur php my admin -> Téo
+- Page de listing des sports et filtrable en fonction du matos. -> Titouant 
+
+Taches réalisé : 
+
+- Page d'accueil avec QRcode ( non fonctionnel encore ) finis 
+	- Possibilité de refresh le QRcode ou automatiquement toute les 60 secs.
+- Mise en place de la Base de données sur php my admin 
+- Page des differents sports avec filtre non lié a la bdd encore.
+
+
+Sprint review : 
+
+Retard sur la base de donnée lié a une erreur de liason entre la bdd et le site.
+
+
+Taches restantes : 
+
+crée un compte 
+Me connecter 
+Me déconnecter
+Rentrer des infos utilisateurs
+lier a la bdd
+Voir les séances disponible
+Rechercher une séance (filtre)
+Réserver des salles / matériels
+Annuler une réservation 
+Voir ma progression 
+Voir mon historique des séances (se que j’ai fais comme séance et combien de fois je suis venue dans la semaine)
+avoir une gestion des comptes 
+Pouvoir ajouter et supprimer des sports / séances 
+Gérer la réservation des salles

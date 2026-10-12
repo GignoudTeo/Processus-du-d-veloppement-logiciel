@@ -1,21 +1,23 @@
 <?php
 require_once __DIR__ . '/includes/accounts.php';
+require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/mailer.php';
 
-session_start();
+startSession();
+
+if (currentUser()) {
+    header('Location: index.php');
+    exit;
+}
 
 $pageTitle  = 'Inscription';
 $activePage = 'inscription';
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
 
 $data   = [];
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+    if (!isValidCsrf($_POST['csrf_token'] ?? null)) {
         $errors['global'] = 'La session a expiré, recharge la page et réessaie.';
     } else {
         [$data, $errors] = validateRegistration($_POST);
@@ -80,14 +82,14 @@ require __DIR__ . '/includes/header.php';
                 <?php else: ?>
                     <p class="lead">Ton compte est bien créé, mais le mail de confirmation n'a pas pu être envoyé.</p>
                 <?php endif; ?>
-                <a href="qrcode.php" class="btn btn-lg">Afficher mon QR code</a>
+                <a href="connexion.php" class="btn btn-lg">Se connecter</a>
             </div>
         <?php else: ?>
             <p class="tag">Rejoins la salle</p>
             <h1>Créer mon <span class="highlight">compte</span></h1>
 
             <form class="form-card" method="post" action="inscription.php" novalidate>
-                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
 
                 <?php if (isset($errors['global'])): ?>
                     <p class="form-alert" role="alert"><?= htmlspecialchars($errors['global']) ?></p>
@@ -146,6 +148,8 @@ require __DIR__ . '/includes/header.php';
                 </div>
 
                 <button type="submit" class="btn btn-lg btn-block">Créer mon compte</button>
+
+                <p class="form-switch">Déjà un compte ? <a href="connexion.php">Se connecter</a></p>
             </form>
         <?php endif; ?>
     </div>

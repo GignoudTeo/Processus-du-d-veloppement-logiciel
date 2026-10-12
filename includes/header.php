@@ -1,15 +1,19 @@
 <?php
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
 
 $pageTitle  = $pageTitle ?? APP_NAME;
 $activePage = $activePage ?? '';
+$user       = currentUser();
 
 $navLinks = [
     'accueil' => ['label' => 'Accueil', 'href' => 'index.php'],
     'sports'  => ['label' => 'Nos sports', 'href' => 'sports.php'],
     'qrcode'  => ['label' => 'Mon QR code', 'href' => 'qrcode.php'],
-    'inscription' => ['label' => 'Inscription', 'href' => 'inscription.php'],
 ];
+if (!$user) {
+    $navLinks['connexion']   = ['label' => 'Connexion', 'href' => 'connexion.php'];
+    $navLinks['inscription'] = ['label' => 'Inscription', 'href' => 'inscription.php'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -39,6 +43,14 @@ $navLinks = [
                     <?= $link['label'] ?>
                 </a>
             <?php endforeach; ?>
+
+            <?php if ($user): ?>
+                <span class="nav-user">Bonjour <?= htmlspecialchars($user['prenom']) ?></span>
+                <form method="post" action="deconnexion.php" class="nav-logout">
+                    <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                    <button type="submit" class="btn btn-outline btn-small">Déconnexion</button>
+                </form>
+            <?php endif; ?>
         </nav>
     </div>
 </header>

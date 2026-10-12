@@ -5,7 +5,7 @@
         <p>&copy; <?= date('Y') ?> <?= APP_NAME ?></p>
     </div>
 </footer>
-<script src="assets/js/main.js"></script>
+<script src="assets/js/main.js?v=<?= filemtime(__DIR__ . '/../assets/js/main.js') ?>"></script>
 <?php if (!empty($extraScripts)): ?>
     <?php foreach ($extraScripts as $script): ?>
         <script src="<?= $script ?>"></script>

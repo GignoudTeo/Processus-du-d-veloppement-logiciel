@@ -105,6 +105,7 @@ p { margin: 0 0 1em; }
 
 .btn-lg { padding: 1.1em 2.2em; font-size: 1.05rem; }
 .btn-block { display: block; width: 100%; }
+.btn-small { padding: 0.5em 1.1em; font-size: 0.8rem; }
 
 .btn-outline {
     background: transparent;
@@ -526,6 +527,28 @@ p { margin: 0 0 1em; }
 .success-card { text-align: center; }
 .success-card .lead { margin: 0 auto 2rem; }
 
+.form-page-narrow { max-width: 480px; }
+
+.form-grid-single { grid-template-columns: 1fr; }
+
+.form-switch {
+    margin: 20px 0 0;
+    color: var(--color-muted);
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.form-switch a { color: var(--color-yellow); font-weight: 600; }
+
+/* ---------- Utilisateur connecté (menu) ---------- */
+.nav-user {
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.nav-logout { margin: 0; }
+
 /* ---------- Footer ---------- */
 .site-footer {
     padding: 28px 0;
@@ -575,6 +598,8 @@ p { margin: 0 0 1em; }
     .main-nav.open { display: flex; }
 
     .main-nav a { padding: 14px 0; }
+    .nav-user { padding: 14px 0 8px; }
+    .nav-logout .btn { width: 100%; }
     .main-nav a::after { display: none; }
     .main-nav a.active { color: var(--color-yellow); }
 }

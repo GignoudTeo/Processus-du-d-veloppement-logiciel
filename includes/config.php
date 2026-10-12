@@ -5,8 +5,6 @@ define('QR_SECRET', getenv('QR_SECRET') ?: '419f670236d1302ff394668dec85b78ee915
 
 define('QR_VALIDITY', 60);
 
-define('MEMBER_ID', 1);
-
 // Identifiants SMTP (Gmail) dans config.local.php, non versionné
 if (is_file(__DIR__ . '/config.local.php')) {
     require_once __DIR__ . '/config.local.php';

@@ -4,13 +4,16 @@ require_once __DIR__ . '/auth.php';
 $pageTitle  = $pageTitle ?? APP_NAME;
 $activePage = $activePage ?? '';
 $user       = currentUser();
+$flash      = takeFlash();
 
 $navLinks = [
     'accueil' => ['label' => 'Accueil', 'href' => 'index.php'],
     'sports'  => ['label' => 'Nos sports', 'href' => 'sports.php'],
     'qrcode'  => ['label' => 'Mon QR code', 'href' => 'qrcode.php'],
 ];
-if (!$user) {
+if ($user) {
+    $navLinks['compte'] = ['label' => 'Mon compte', 'href' => 'compte.php'];
+} else {
     $navLinks['connexion']   = ['label' => 'Connexion', 'href' => 'connexion.php'];
     $navLinks['inscription'] = ['label' => 'Inscription', 'href' => 'inscription.php'];
 }
@@ -55,3 +58,8 @@ if (!$user) {
     </div>
 </header>
 <main>
+<?php if ($flash): ?>
+    <div class="flash" role="status">
+        <div class="container"><?= htmlspecialchars($flash) ?></div>
+    </div>
+<?php endif; ?>

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/accounts.php';
 require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/form.php';
 require_once __DIR__ . '/includes/mailer.php';
 
 startSession();
@@ -55,18 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $success = $_SESSION['inscription'] ?? null;
 unset($_SESSION['inscription']);
-
-function old(array $data, string $field): string
-{
-    return htmlspecialchars($data[$field] ?? '');
-}
-
-function fieldError(array $errors, string $field): string
-{
-    return isset($errors[$field])
-        ? '<p class="field-error">' . htmlspecialchars($errors[$field]) . '</p>'
-        : '';
-}
 
 require __DIR__ . '/includes/header.php';
 ?>

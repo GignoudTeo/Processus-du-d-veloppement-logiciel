@@ -31,6 +31,34 @@ function isValidCsrf(?string $token): bool
     return is_string($token) && hash_equals(csrfToken(), $token);
 }
 
+// Message affiché une seule fois sur la page suivante (après une redirection)
+function setFlash(string $message): void
+{
+    startSession();
+    $_SESSION['flash'] = $message;
+}
+
+function takeFlash(): ?string
+{
+    startSession();
+    $message = $_SESSION['flash'] ?? null;
+    unset($_SESSION['flash']);
+
+    return $message;
+}
+
+// Page réservée aux personnes connectées : renvoie l'utilisateur ou redirige vers la connexion
+function requireLogin(): array
+{
+    $user = currentUser();
+    if (!$user) {
+        header('Location: connexion.php');
+        exit;
+    }
+
+    return $user;
+}
+
 // ['id_compte', 'email', 'role', 'prenom'] ou null si personne n'est connecté
 function currentUser(): ?array
 {

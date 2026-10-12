@@ -107,6 +107,18 @@ p { margin: 0 0 1em; }
 .btn-block { display: block; width: 100%; }
 .btn-small { padding: 0.5em 1.1em; font-size: 0.8rem; }
 
+.btn-danger {
+    border-color: #ff6b6b;
+    background: transparent;
+    color: #ff6b6b;
+}
+
+.btn-danger:hover {
+    border-color: #ff6b6b;
+    background: #ff6b6b;
+    color: var(--color-black);
+}
+
 .btn-outline {
     background: transparent;
     color: var(--color-yellow);
@@ -539,6 +551,30 @@ p { margin: 0 0 1em; }
 }
 
 .form-switch a { color: var(--color-yellow); font-weight: 600; }
+
+/* ---------- Page Mon compte ---------- */
+.form-card + .form-card { margin-top: 28px; }
+
+.form-card h2 {
+    margin: 0 0 20px;
+    font-family: var(--font-title);
+    font-weight: 400;
+    font-size: 1.8rem;
+    text-transform: uppercase;
+}
+
+.danger-card { border-top-color: #ff6b6b; }
+
+.muted-text { color: var(--color-muted); }
+
+/* ---------- Message après redirection ---------- */
+.flash {
+    padding: 14px 0;
+    background: var(--color-yellow);
+    color: var(--color-black);
+    font-weight: 600;
+    text-align: center;
+}
 
 /* ---------- Utilisateur connecté (menu) ---------- */
 .nav-user {

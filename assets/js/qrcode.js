@@ -4,7 +4,6 @@
 
     const countdownEl = document.getElementById('qr-countdown');
     const progressBar = document.getElementById('qr-progress-bar');
-    const refreshBtn = document.getElementById('qr-refresh');
     const validity = parseInt(card.dataset.validity, 10);
 
     const qr = new QRCode(document.getElementById('qr-code'), {
@@ -24,9 +23,12 @@
     }
 
     async function refreshToken() {
-        refreshBtn.disabled = true;
         try {
             const response = await fetch('api/qr-token.php', { cache: 'no-store' });
+            if (response.status === 401 || response.status === 404) {
+                window.location.href = 'connexion.php'; // session expirée ou compte supprimé
+                return;
+            }
             if (!response.ok) throw new Error('HTTP ' + response.status);
             const data = await response.json();
 
@@ -36,8 +38,6 @@
         } catch (error) {
             console.error('Impossible de régénérer le QR code :', error);
             remaining = 5; // nouvel essai dans 5 s
-        } finally {
-            refreshBtn.disabled = false;
         }
     }
 
@@ -50,5 +50,4 @@
         updateCountdown();
     }, 1000);
 
-    refreshBtn.addEventListener('click', refreshToken);
 })();

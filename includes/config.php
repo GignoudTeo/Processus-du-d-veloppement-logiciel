@@ -7,6 +7,15 @@ define('QR_VALIDITY', 60);
 
 define('MEMBER_ID', 1);
 
+// Identifiants SMTP (Gmail) dans config.local.php, non versionné
+if (is_file(__DIR__ . '/config.local.php')) {
+    require_once __DIR__ . '/config.local.php';
+}
+defined('SMTP_HOST') || define('SMTP_HOST', 'smtp.gmail.com');
+defined('SMTP_PORT') || define('SMTP_PORT', 587);
+defined('SMTP_USER') || define('SMTP_USER', '');
+defined('SMTP_PASSWORD') || define('SMTP_PASSWORD', '');
+
 function getDatabaseConnection(): PDO
 {
     // Hôte Supabase utilisant le Connection Pooler pour la région eu-west-1

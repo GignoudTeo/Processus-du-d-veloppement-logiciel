@@ -453,6 +453,79 @@ p { margin: 0 0 1em; }
     border-top: 1px solid var(--color-border);
 }
 
+/* ---------- Page inscription ---------- */
+.form-section {
+    padding: 64px 0 80px;
+    background: radial-gradient(circle at 50% 20%, rgba(255, 209, 0, 0.12), transparent 55%);
+}
+
+.form-page {
+    max-width: 720px;
+}
+
+.form-page h1 { font-size: clamp(2.8rem, 7vw, 4.5rem); }
+
+.form-card {
+    padding: 32px;
+    border-radius: var(--radius);
+    border-top: 6px solid var(--color-yellow);
+    background: var(--color-surface);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 28px;
+}
+
+.field-full { grid-column: 1 / -1; }
+
+.field label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.field input {
+    width: 100%;
+    padding: 0.85em 1em;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+    color-scheme: dark;
+    transition: border-color 0.2s;
+}
+
+.field input:focus {
+    outline: none;
+    border-color: var(--color-yellow);
+}
+
+.field-error {
+    margin: 6px 0 0;
+    color: #ff6b6b;
+    font-size: 0.85rem;
+}
+
+.form-alert {
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    border-left: 4px solid #ff6b6b;
+    border-radius: var(--radius-small);
+    background: rgba(255, 107, 107, 0.1);
+}
+
+.success-card { text-align: center; }
+.success-card .lead { margin: 0 auto 2rem; }
+
 /* ---------- Footer ---------- */
 .site-footer {
     padding: 28px 0;
@@ -510,6 +583,10 @@ p { margin: 0 0 1em; }
     .sports-filter { align-items: stretch; flex-direction: column; }
 
     .sports-filter select { min-width: 0; width: 100%; }
+
+    .form-grid { grid-template-columns: 1fr; }
+
+    .form-card { padding: 24px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

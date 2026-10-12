@@ -44,7 +44,9 @@ CREATE TABLE adherents (
   prenom VARCHAR(100) NOT NULL,
   adresse VARCHAR(255) DEFAULT NULL,
   poids DECIMAL(5,2) DEFAULT NULL,
-  taille DECIMAL(5,2) DEFAULT NULL
+  taille DECIMAL(5,2) DEFAULT NULL,
+  telephone VARCHAR(20) DEFAULT NULL,
+  date_naissance DATE DEFAULT NULL
 );
 COMMENT ON COLUMN adherents.poids IS 'Poids en kg';
 COMMENT ON COLUMN adherents.taille IS 'Taille en cm';
@@ -151,5 +153,16 @@ INSERT INTO cours (id_cours, id_sport, id_coach, id_salle, date_debut, date_fin,
 
 INSERT INTO reservations (id_cours, id_adherent, statut) VALUES
 (1, 1, 'confirmee');
+
+-- Recale les compteurs d'id après les insertions avec id fixes
+SELECT setval(pg_get_serial_sequence('comptes', 'id_compte'), (SELECT MAX(id_compte) FROM comptes));
+SELECT setval(pg_get_serial_sequence('adherents', 'id_adherent'), (SELECT MAX(id_adherent) FROM adherents));
+SELECT setval(pg_get_serial_sequence('admins', 'id_admin'), (SELECT MAX(id_admin) FROM admins));
+SELECT setval(pg_get_serial_sequence('coachs', 'id_coach'), (SELECT MAX(id_coach) FROM coachs));
+SELECT setval(pg_get_serial_sequence('categories', 'id_categorie'), (SELECT MAX(id_categorie) FROM categories));
+SELECT setval(pg_get_serial_sequence('sports', 'id_sport'), (SELECT MAX(id_sport) FROM sports));
+SELECT setval(pg_get_serial_sequence('salles', 'id_salle'), (SELECT MAX(id_salle) FROM salles));
+SELECT setval(pg_get_serial_sequence('cours', 'id_cours'), (SELECT MAX(id_cours) FROM cours));
+SELECT setval(pg_get_serial_sequence('reservations', 'id_reservation'), (SELECT MAX(id_reservation) FROM reservations));
 
 COMMIT;

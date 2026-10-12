@@ -1,5 +1,6 @@
 <?php
-require_once __DIR__ . '/includes/qrcode.php';
+session_start();
+require_once __DIR__ . '/includes/config.php';
 
 $pageTitle    = 'Mon QR code';
 $activePage   = 'qrcode';
@@ -8,7 +9,36 @@ $extraScripts = [
     'assets/js/qrcode.js',
 ];
 
-$access = generateAccessToken(MEMBER_ID);
+// 1. Récupération de l'ID utilisateur (depuis la session, ou MEMBER_ID par défaut)
+$userId = $_SESSION['user_id'] ?? MEMBER_ID;
+
+// 2. Récupération du hash du mot de passe en base de données
+try {
+    $db = getDatabaseConnection();
+    // On va chercher le hash dans la table centrale 'comptes'
+    $stmt = $db->prepare('SELECT mot_de_passe_hash FROM comptes WHERE id_compte = :id');
+    $stmt->execute(['id' => $userId]);
+    $user = $stmt->fetch();
+
+    if (!$user) {
+        die("Erreur : Utilisateur introuvable.");
+    }
+} catch (PDOException $e) {
+    die("Erreur de base de données : " . $e->getMessage());
+}
+
+// 3. Création du Token unique (Heure + Fragment du mot de passe)
+// timeWindow change toutes les 60 secondes (QR_VALIDITY)
+$timeWindow = floor(time() / QR_VALIDITY); 
+// On prend les 10 premiers caractères du hash du mot de passe comme "secret" utilisateur
+$secretPart = substr($user['mot_de_passe_hash'], 0, 10); 
+
+// On assemble les données et on les sécurise avec la clé globale de l'application
+$dataToHash = $userId . '|' . $timeWindow . '|' . $secretPart;
+$token = hash_hmac('sha256', $dataToHash, QR_SECRET);
+
+// Le payload final qui sera lu par le lecteur de la salle (ID + Token de vérification)
+$qrPayload = $userId . ':' . $token;
 
 require __DIR__ . '/includes/header.php';
 ?>
@@ -21,11 +51,11 @@ require __DIR__ . '/includes/header.php';
 
         <div class="qr-card"
              id="qr-card"
-             data-token="<?= htmlspecialchars($access['token']) ?>"
+             data-token="<?= htmlspecialchars($qrPayload) ?>"
              data-validity="<?= QR_VALIDITY ?>">
             <div class="qr-card-head">
                 <span class="logo logo-small">FIT<span>PASS</span></span>
-                <span class="qr-member">Adhérent n° <?= MEMBER_ID ?></span>
+                <span class="qr-member">Adhérent n° <?= htmlspecialchars($userId) ?></span>
             </div>
 
             <div id="qr-code" class="qr-code" aria-label="QR code d'accès"></div>

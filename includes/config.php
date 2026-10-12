@@ -43,3 +43,5 @@ function getDatabaseConnection(): PDO
         die("Erreur de connexion à la base de données : " . $e->getMessage());
     }
 }
+##sb_publishable_YiOREdFE2YbHf7NqCZ-zvQ_gYuZw7H2
+#https://rncillqcjbzxbebcuvfh.supabase.co/rest/v1/

@@ -12,17 +12,37 @@ define('MEMBER_ID', 1);
 
 function getDatabaseConnection(): PDO
 {
-	$host = getenv('DB_HOST') ?: '127.0.0.1';
-	$database = getenv('DB_NAME') ?: 'fitpass';
-	$username = getenv('DB_USER') ?: 'root';
-	$password = getenv('DB_PASSWORD') ?: '';
+    // Hôte Supabase utilisant le Connection Pooler pour la région eu-west-1
+    // (Alternative de connexion directe : 'db.rncillqcjbzxbebcuvfh.supabase.co')
+    $host = getenv('DB_HOST') ?: 'aws-0-eu-west-1.pooler.supabase.com'; 
+    
+    // Port 6543 pour le pooler (ou 5432 pour la connexion directe)
+    $port = getenv('DB_PORT') ?: '6543'; 
+    
+    // Le nom de la base de données est par défaut 'postgres' sur Supabase
+    $database = getenv('DB_NAME') ?: 'postgres'; 
+    
+    // Avec le pooler, l'utilisateur prend la forme postgres.[project-id]
+    // (Si connexion directe port 5432, utiliser seulement 'postgres')
+    $username = getenv('DB_USER') ?: 'postgres.rncillqcjbzxbebcuvfh'; 
+    
+    // Ton mot de passe
+    $password = getenv('DB_PASSWORD') ?: 'ProcesDev84';
 
-	$connection = new PDO(
-		"mysql:host=$host;dbname=$database;charset=utf8mb4",
-		$username,
-		$password,
-		[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-	);
+    try {
+        // Connexion avec le driver PostgreSQL (pgsql)
+        $connection = new PDO(
+            "pgsql:host=$host;port=$port;dbname=$database",
+            $username,
+            $password,
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC 
+            ]
+        );
 
-	return $connection;
+        return $connection;
+    } catch (PDOException $e) {
+        die("Erreur de connexion à la base de données : " . $e->getMessage());
+    }
 }

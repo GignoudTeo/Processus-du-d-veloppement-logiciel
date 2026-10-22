@@ -39,4 +39,23 @@ class MailerTest extends TestCase
 
         $this->assertStringContainsString('a=1&amp;b=&quot;x&quot;', $mail['html']);
     }
+
+    public function testMailDeChangementDeRoleContientLesRoles(): void
+    {
+        $mail = buildRoleChangeMail('Alex', 'adherent', 'coach');
+
+        $this->assertStringContainsString('Modification du rôle', $mail['subject']);
+        $this->assertStringContainsString('Adhérent', $mail['html']);
+        $this->assertStringContainsString('Coach', $mail['html']);
+        $this->assertStringContainsString('Adhérent devient Coach', $mail['text']);
+    }
+
+    public function testNomEtRolesSontEchappesDansLeMailDeChangement(): void
+    {
+        $mail = buildRoleChangeMail('<script>alert(1)</script>', 'adherent', '<b>admin</b>');
+
+        $this->assertStringNotContainsString('<script>', $mail['html']);
+        $this->assertStringContainsString('&lt;script&gt;', $mail['html']);
+        $this->assertStringContainsString('&lt;b&gt;admin&lt;/b&gt;', $mail['html']);
+    }
 }

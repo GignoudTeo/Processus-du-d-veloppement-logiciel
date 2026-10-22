@@ -126,6 +126,106 @@ class AccountsTest extends TestCase
         $this->assertNull(getAdherentProfile($this->db, (int) $this->db->lastInsertId()));
     }
 
+    // ---------- administration des comptes ----------
+
+    public function testListeDesComptesAdminAvecLeurProfilEtLeurRole(): void
+    {
+        [$accountId] = createTestAdherent($this->db);
+        $accounts = getAccountsForAdmin($this->db);
+
+        $this->assertCount(1, $accounts);
+        $this->assertSame($accountId, (int) $accounts[0]['id_compte']);
+        $this->assertSame('Alex', $accounts[0]['prenom']);
+        $this->assertSame('Martin', $accounts[0]['nom']);
+        $this->assertSame('adherent', $accounts[0]['role']);
+    }
+
+    public function testRechercheAdminFiltreParNomPrenomEtEmailSansTenirCompteDeLaCasse(): void
+    {
+        [$alexId] = createTestAdherent($this->db);
+        createTestAdherent($this->db, ['nom' => 'Durand', 'prenom' => 'Camille', 'email' => 'camille@example.com']);
+
+        $this->assertSame([$alexId], array_column(getAccountsForAdmin($this->db, 'MART'), 'id_compte'));
+        $this->assertCount(1, getAccountsForAdmin($this->db, 'camille@EXAMPLE'));
+        $this->assertCount(0, getAccountsForAdmin($this->db, 'inconnu'));
+    }
+
+    public function testRecuperationDesInformationsPourLaNotificationDeChangementDeRole(): void
+    {
+        [$accountId] = createTestAdherent($this->db);
+        $details = getAccountNotificationDetails($this->db, $accountId);
+
+        $this->assertSame('alex.martin@example.com', $details['email']);
+        $this->assertSame('adherent', $details['role']);
+        $this->assertSame('Alex', $details['prenom']);
+        $this->assertNull(getAccountNotificationDetails($this->db, 999));
+    }
+
+    public function testChangementDuRoleCreeProfilEtChangeLeRole(): void
+    {
+        [$accountId] = createTestAdherent($this->db);
+
+        $this->assertSame('changed', changeAccountRole($this->db, $accountId, 'coach', 999));
+        $this->assertSame('coach', $this->account($accountId)['role']);
+
+        $statement = $this->db->prepare('SELECT nom, prenom FROM coachs WHERE id_compte = :id');
+        $statement->execute(['id' => $accountId]);
+        $this->assertSame(['nom' => 'Martin', 'prenom' => 'Alex'], $statement->fetch());
+    }
+
+    public function testChangementDeCoachVersAdherentCreeLeProfilAdherent(): void
+    {
+        [$accountId] = createTestAdherent($this->db);
+        $this->assertSame('changed', changeAccountRole($this->db, $accountId, 'coach', 999));
+        $this->assertSame('changed', changeAccountRole($this->db, $accountId, 'adherent', 999));
+
+        $this->assertSame('adherent', $this->account($accountId)['role']);
+        $this->assertSame('Alex', getAdherentProfile($this->db, $accountId)['prenom']);
+    }
+
+    public function testChangementVersAdminCreeLeProfilAdmin(): void
+    {
+        [$accountId] = createTestAdherent($this->db);
+
+        $this->assertSame('changed', changeAccountRole($this->db, $accountId, 'admin', 999));
+        $this->assertSame('admin', $this->account($accountId)['role']);
+
+        $statement = $this->db->prepare('SELECT nom, prenom FROM admins WHERE id_compte = :id');
+        $statement->execute(['id' => $accountId]);
+        $this->assertSame(['nom' => 'Martin', 'prenom' => 'Alex'], $statement->fetch());
+    }
+
+    public function testAdministrateurPeutChangerUnAutreAdminDeRole(): void
+    {
+        [$accountId] = createTestAdherent($this->db);
+        $this->db->exec("INSERT INTO comptes (email, mot_de_passe_hash, role) VALUES ('autre-admin@example.com', 'x', 'admin')");
+        $otherAdminId = (int) $this->db->lastInsertId();
+        $this->db->exec("INSERT INTO admins (id_compte, nom, prenom) VALUES ($otherAdminId, 'Admin', 'Principal')");
+
+        $this->assertSame('changed', changeAccountRole($this->db, $accountId, 'admin', $otherAdminId));
+        $this->assertSame('changed', changeAccountRole($this->db, $accountId, 'coach', $otherAdminId));
+        $this->assertSame('coach', $this->account($accountId)['role']);
+        $this->assertSame('admin', $this->account($otherAdminId)['role']);
+    }
+
+    public function testChangementRefuseLaModificationDeSonPropreRole(): void
+    {
+        [$accountId] = createTestAdherent($this->db);
+
+        $this->assertSame('self_change_forbidden', changeAccountRole($this->db, $accountId, 'coach', $accountId));
+        $this->assertSame('adherent', $this->account($accountId)['role']);
+    }
+
+    public function testDernierAdministrateurNePeutPasEtreRetrograde(): void
+    {
+        $this->db->exec("INSERT INTO comptes (email, mot_de_passe_hash, role) VALUES ('admin@example.com', 'x', 'admin')");
+        $accountId = (int) $this->db->lastInsertId();
+        $this->db->exec("INSERT INTO admins (id_compte, nom, prenom) VALUES ($accountId, 'Dupont', 'Super')");
+
+        $this->assertSame('last_admin', changeAccountRole($this->db, $accountId, 'adherent', 999));
+        $this->assertSame('admin', $this->account($accountId)['role']);
+    }
+
     // ---------- updateAdherentProfile ----------
 
     public function testModificationDuProfil(): void

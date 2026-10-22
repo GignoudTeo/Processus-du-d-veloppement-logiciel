@@ -13,6 +13,9 @@ $navLinks = [
 ];
 if ($user) {
     $navLinks['compte'] = ['label' => 'Mon compte', 'href' => 'compte.php'];
+    if ($user['role'] === 'admin') {
+        $navLinks['administration'] = ['label' => 'Administration', 'href' => 'administration.php'];
+    }
 } else {
     $navLinks['connexion']   = ['label' => 'Connexion', 'href' => 'connexion.php'];
     $navLinks['inscription'] = ['label' => 'Inscription', 'href' => 'inscription.php'];

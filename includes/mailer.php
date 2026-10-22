@@ -35,18 +35,65 @@ function buildConfirmationMail(string $firstname, string $confirmationLink): arr
     ];
 }
 
+function buildRoleChangeMail(string $firstname, string $oldRole, string $newRole): array
+{
+    $roleLabels = [
+        'adherent' => 'Adhérent',
+        'coach'    => 'Coach',
+        'admin'    => 'Admin',
+    ];
+    $oldRoleLabel = $roleLabels[$oldRole] ?? ucfirst($oldRole);
+    $newRoleLabel = $roleLabels[$newRole] ?? ucfirst($newRole);
+    $safeName = htmlspecialchars($firstname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $safeOldRole = htmlspecialchars($oldRoleLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $safeNewRole = htmlspecialchars($newRoleLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    $html = <<<HTML
+        <div style="font-family: Arial, sans-serif; max-width: 520px; margin: auto; background: #0a0a0a; color: #ffffff; padding: 32px; border-radius: 12px;">
+            <h1 style="margin: 0 0 16px; font-size: 28px;">FIT<span style="color: #ffd100;">PASS</span></h1>
+            <p style="font-size: 16px;">Bonjour {$safeName},</p>
+            <p style="font-size: 16px;">Le rôle associé à ton compte {$safeName} a été modifié :</p>
+            <p style="font-size: 16px;"><strong>{$safeOldRole}</strong> devient <strong>{$safeNewRole}</strong>.</p>
+            <p style="color: #a3a3a3; font-size: 13px; margin-top: 32px;">Si tu ne t'attendais pas à ce changement, contacte l'équipe FitPass.</p>
+        </div>
+        HTML;
+
+    $text = "Bonjour {$firstname},\n\nLe rôle associé à ton compte " . APP_NAME . " a été modifié : "
+        . $oldRoleLabel . ' devient ' . $newRoleLabel . ".\n\n"
+        . "Si tu ne t'attendais pas à ce changement, contacte l'équipe FitPass.";
+
+    return [
+        'subject' => 'Modification du rôle de ton compte ' . APP_NAME,
+        'html'    => $html,
+        'text'    => $text,
+    ];
+}
+
 // Renvoie false si le SMTP n'est pas configuré ou si l'envoi échoue
 function sendConfirmationMail(string $email, string $firstname, string $confirmationLink): bool
+{
+    return sendMail($email, $firstname, buildConfirmationMail($firstname, $confirmationLink));
+}
+
+function sendRoleChangeMail(
+    string $email,
+    string $firstname,
+    string $oldRole,
+    string $newRole
+): bool {
+    return sendMail($email, $firstname, buildRoleChangeMail($firstname, $oldRole, $newRole));
+}
+
+function sendMail(string $email, string $firstname, array $content): bool
 {
     if (SMTP_USER === '' || SMTP_PASSWORD === '') {
         error_log('Mail non envoyé : SMTP_USER / SMTP_PASSWORD vides dans includes/config.local.php');
         return false;
     }
 
-    $mail    = new PHPMailer(true);
-    $content = buildConfirmationMail($firstname, $confirmationLink);
-
+    $mail = null;
     try {
+        $mail = new PHPMailer(true);
         $mail->isSMTP();
         $mail->Host       = SMTP_HOST;
         $mail->Port       = SMTP_PORT;
@@ -68,7 +115,7 @@ function sendConfirmationMail(string $email, string $firstname, string $confirma
 
         return true;
     } catch (Exception $e) {
-        error_log('Envoi du mail impossible : ' . $mail->ErrorInfo);
+        error_log('Envoi du mail impossible : ' . ($mail ? $mail->ErrorInfo : $e->getMessage()));
         return false;
     }
 }

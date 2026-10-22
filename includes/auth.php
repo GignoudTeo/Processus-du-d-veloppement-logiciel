@@ -62,6 +62,18 @@ function requireLogin(): array
     return $user;
 }
 
+function requireAdmin(): array
+{
+    $user = requireLogin();
+    if ($user['role'] !== 'admin') {
+        setFlash('Cette page est réservée aux administrateurs.');
+        header('Location: index.php');
+        exit;
+    }
+
+    return $user;
+}
+
 // ['id_compte', 'email', 'role', 'prenom'] ou null si personne n'est connecté
 function currentUser(): ?array
 {

@@ -125,7 +125,7 @@ function confirmEmail(PDO $db, string $confirmationToken): bool
     return $statement->rowCount() === 1;
 }
 
-// null si le compte n'a pas de profil adhérent (coach, admin)
+// null si le compte n'a pas de profil adhérent
 function getAdherentProfile(PDO $db, int $accountId): ?array
 {
     $statement = $db->prepare(
@@ -137,6 +137,143 @@ function getAdherentProfile(PDO $db, int $accountId): ?array
     $statement->execute(['id' => $accountId]);
 
     return $statement->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+function getAccountsForAdmin(PDO $db, string $search = ''): array
+{
+    $sql =
+        'SELECT c.id_compte, c.email, c.role, c.email_confirme,
+                COALESCE(a.nom, co.nom, ad.nom) AS nom,
+                COALESCE(a.prenom, co.prenom, ad.prenom) AS prenom
+         FROM comptes c
+         LEFT JOIN adherents a ON a.id_compte = c.id_compte
+         LEFT JOIN coachs co ON co.id_compte = c.id_compte
+         LEFT JOIN admins ad ON ad.id_compte = c.id_compte';
+
+    if ($search !== '') {
+        $sql .=
+            " WHERE LOWER(c.email) LIKE LOWER(:email_search)
+                OR LOWER(COALESCE(a.nom, co.nom, ad.nom, '')) LIKE LOWER(:nom_search)
+                OR LOWER(COALESCE(a.prenom, co.prenom, ad.prenom, '')) LIKE LOWER(:prenom_search)";
+    }
+
+    $sql .= ' ORDER BY c.date_creation DESC, c.id_compte DESC';
+    $statement = $db->prepare($sql);
+    if ($search !== '') {
+        $term = '%' . $search . '%';
+        $statement->execute([
+            'email_search'  => $term,
+            'nom_search'    => $term,
+            'prenom_search' => $term,
+        ]);
+    } else {
+        $statement->execute();
+    }
+    return $statement->fetchAll();
+}
+
+function getAccountNotificationDetails(PDO $db, int $accountId): ?array
+{
+    $statement = $db->prepare(
+        'SELECT c.email, c.role,
+                COALESCE(a.prenom, co.prenom, ad.prenom, \'\') AS prenom
+         FROM comptes c
+         LEFT JOIN adherents a ON a.id_compte = c.id_compte
+         LEFT JOIN coachs co ON co.id_compte = c.id_compte
+         LEFT JOIN admins ad ON ad.id_compte = c.id_compte
+         WHERE c.id_compte = :id'
+    );
+    $statement->execute(['id' => $accountId]);
+
+    return $statement->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+function changeAccountRole(PDO $db, int $accountId, string $newRole, int $actingAdminId): string
+{
+    $roleTables = [
+        'adherent' => 'adherents',
+        'coach'    => 'coachs',
+        'admin'    => 'admins',
+    ];
+    if (!isset($roleTables[$newRole])) {
+        throw new InvalidArgumentException('Rôle de compte invalide.');
+    }
+
+    $db->beginTransaction();
+
+    try {
+        $statement = $db->prepare(
+            'SELECT c.role,
+                    COALESCE(a.nom, co.nom, ad.nom) AS nom,
+                    COALESCE(a.prenom, co.prenom, ad.prenom) AS prenom,
+                    a.id_adherent, co.id_coach, ad.id_admin
+             FROM comptes c
+             LEFT JOIN adherents a ON a.id_compte = c.id_compte
+             LEFT JOIN coachs co ON co.id_compte = c.id_compte
+             LEFT JOIN admins ad ON ad.id_compte = c.id_compte
+             WHERE c.id_compte = :id'
+        );
+        $statement->execute(['id' => $accountId]);
+        $account = $statement->fetch(PDO::FETCH_ASSOC);
+
+        if (!$account) {
+            $db->commit();
+            return 'not_found';
+        }
+
+        if ($account['role'] === $newRole) {
+            $db->commit();
+            return 'unchanged';
+        }
+
+        if ($accountId === $actingAdminId) {
+            $db->commit();
+            return 'self_change_forbidden';
+        }
+
+        if ($account['role'] === 'admin' && $newRole !== 'admin') {
+            $adminCount = (int) $db->query("SELECT COUNT(*) FROM comptes WHERE role = 'admin'")->fetchColumn();
+            if ($adminCount <= 1) {
+                $db->commit();
+                return 'last_admin';
+            }
+        }
+
+        if ($account['nom'] === null || $account['prenom'] === null) {
+            $db->commit();
+            return 'profile_missing';
+        }
+
+        $profileIdColumn = [
+            'adherent' => 'id_adherent',
+            'coach'    => 'id_coach',
+            'admin'    => 'id_admin',
+        ][$newRole];
+
+        if ($account[$profileIdColumn] === null) {
+            $profileTable = $roleTables[$newRole];
+            $statement = $db->prepare(
+                "INSERT INTO $profileTable (id_compte, nom, prenom)
+                 VALUES (:id, :nom, :prenom)"
+            );
+            $statement->execute([
+                'id'     => $accountId,
+                'nom'    => $account['nom'],
+                'prenom' => $account['prenom'],
+            ]);
+        }
+
+        $statement = $db->prepare('UPDATE comptes SET role = :role WHERE id_compte = :id');
+        $statement->execute(['role' => $newRole, 'id' => $accountId]);
+
+        $db->commit();
+        return 'changed';
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
 }
 
 function updateAdherentProfile(PDO $db, int $accountId, array $data): void

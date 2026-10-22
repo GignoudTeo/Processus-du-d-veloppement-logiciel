@@ -567,6 +567,79 @@ p { margin: 0 0 1em; }
 
 .muted-text { color: var(--color-muted); }
 
+/* ---------- Page administration ---------- */
+.admin-page { max-width: 1180px; }
+
+.admin-table-wrapper {
+    margin-top: 32px;
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-surface);
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 16px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+}
+
+.admin-table th {
+    color: var(--color-yellow);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.admin-table tr:last-child td { border-bottom: 0; }
+.admin-table form { margin: 0; }
+.admin-table select {
+    margin-right: 8px;
+    padding: 0.55em 0.7em;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+}
+.admin-empty { color: var(--color-muted); text-align: center; }
+
+.admin-search { margin-top: 28px; }
+
+.admin-search label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.admin-search-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.admin-search input {
+    flex: 1 1 260px;
+    min-width: 0;
+    padding: 0.75em 1em;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+}
+
+.admin-search input:focus { outline: none; border-color: var(--color-yellow); }
+
 /* ---------- Message après redirection ---------- */
 .flash {
     padding: 14px 0;

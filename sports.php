@@ -63,6 +63,7 @@ require __DIR__ . '/includes/header.php';
                         <p class="sport-description">
                             <?= htmlspecialchars($sport['description'] ?? 'Description à venir.', ENT_QUOTES, 'UTF-8') ?>
                         </p>
+                        <a class="sport-planning-link" href="planning.php?sport=<?= (int) $sport['id_sport'] ?>">Voir le planning →</a>
                     </article>
                 <?php endforeach; ?>
             </div>

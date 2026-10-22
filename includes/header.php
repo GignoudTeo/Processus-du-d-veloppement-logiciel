@@ -12,7 +12,8 @@ $navLinks = [
     'qrcode'  => ['label' => 'Mon QR code', 'href' => 'qrcode.php'],
 ];
 if ($user) {
-    $navLinks['compte'] = ['label' => 'Mon compte', 'href' => 'compte.php'];
+    $navLinks['planning'] = ['label' => 'Planning', 'href' => 'planning.php'];
+    $navLinks['compte']   = ['label' => 'Mon compte', 'href' => 'compte.php'];
     if ($user['role'] === 'admin') {
         $navLinks['administration'] = ['label' => 'Administration', 'href' => 'administration.php'];
     }

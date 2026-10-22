@@ -658,6 +658,269 @@ p { margin: 0 0 1em; }
 
 .nav-logout { margin: 0; }
 
+/* ---------- Page planning ---------- */
+.sport-planning-link {
+    display: inline-block;
+    margin-top: 1rem;
+    color: var(--color-yellow);
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-decoration: none;
+}
+
+.sport-planning-link:hover { text-decoration: underline; }
+
+/* Légende des sports (cliquable pour filtrer) */
+.tt-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.tt-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.35em 0.9em;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.tt-chip[style]::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--sport-color);
+}
+
+.tt-chip:hover,
+.tt-chip.is-active {
+    border-color: var(--sport-color, var(--color-yellow));
+    color: var(--color-text);
+}
+
+.tt-chip.is-active { background: color-mix(in srgb, var(--sport-color, var(--color-yellow)) 18%, transparent); }
+
+/* Semaine sans cours */
+.tt-empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-small);
+}
+
+.tt-empty p { margin: 0; }
+
+/* Ligne de l'heure actuelle */
+.tt-now {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    height: 2px;
+    background: #ff6b6b;
+    pointer-events: none;
+}
+
+.tt-now::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ff6b6b;
+}
+
+/* Onglets des jours : seulement sur téléphone */
+.tt-tabs { display: none; }
+
+/* Grille emploi du temps : colonne des heures + 7 jours */
+.tt-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.tt-nav-center { text-align: center; }
+
+.tt-nav-center h2 {
+    margin: 0;
+    font-family: var(--font-title);
+    font-weight: 400;
+    font-size: 1.5rem;
+    text-transform: uppercase;
+}
+
+.tt-nav-center a {
+    color: var(--color-yellow);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.tt-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-surface);
+}
+
+.timetable {
+    --tt-hour-height: 96px;
+    display: grid;
+    grid-template-columns: 64px repeat(7, minmax(calc(var(--tt-columns, 1) * 140px), 1fr));
+    grid-template-rows: auto calc(var(--tt-hours) * var(--tt-hour-height));
+}
+
+.tt-corner,
+.tt-hours {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-surface);
+}
+
+.tt-day-head {
+    padding: 12px 8px;
+    border-left: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.tt-day-head.is-today { color: var(--color-yellow); }
+
+.tt-hours {
+    display: grid;
+    grid-auto-rows: var(--tt-hour-height);
+    border-right: 1px solid var(--color-border);
+}
+
+.tt-hours span {
+    padding: 4px 8px 0 0;
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    text-align: right;
+}
+
+/* Une ligne par heure */
+.tt-day {
+    position: relative;
+    border-left: 1px solid var(--color-border);
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent calc(var(--tt-hour-height) - 1px),
+        var(--color-border) calc(var(--tt-hour-height) - 1px),
+        var(--color-border) var(--tt-hour-height)
+    );
+}
+
+.tt-day.is-today { background-color: rgba(255, 209, 0, 0.05); }
+
+.tt-course {
+    position: absolute;
+    overflow: hidden;
+    padding: 6px 8px;
+    border: 2px solid var(--color-surface);
+    border-left: 4px solid var(--sport-color, var(--color-yellow));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--sport-color, var(--color-yellow)) 14%, var(--color-surface-light));
+    font-size: 0.75rem;
+    line-height: 1.35;
+    cursor: default;
+}
+
+/* Au survol, le bloc s'agrandit pour montrer tout son contenu */
+.tt-course:hover {
+    z-index: 1;
+    min-height: fit-content;
+    border-color: var(--sport-color, var(--color-yellow));
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.tt-course.is-past:hover { opacity: 1; }
+
+.tt-course p { margin: 0; color: var(--color-muted); }
+
+.tt-course h3 {
+    margin: 0 0 2px;
+    font-size: 0.85rem;
+    line-height: 1.2;
+}
+
+.tt-course .tt-course-time {
+    color: var(--sport-color, var(--color-yellow));
+    font-weight: 700;
+}
+
+.tt-course .tt-course-sport { color: var(--color-text); }
+
+.tt-course-places { margin-top: 2px; }
+
+/* Places restantes : vert, orange quand c'est presque plein */
+.tt-course .tt-course-free { font-weight: 700; }
+.tt-course .tt-course-free.is-ok { color: #4ade80; }
+.tt-course .tt-course-free.is-low { color: #fb923c; }
+
+/* Cours courts : seulement l'heure et le titre, le reste au survol */
+.tt-course.is-compact p:not(.tt-course-time) { display: none; }
+.tt-course.is-compact:hover p:not(.tt-course-time) { display: block; }
+
+.tt-coach-filter {
+    margin: -0.4em 0 0;
+    color: var(--color-muted);
+    font-weight: 600;
+}
+
+.tt-course .course-badge {
+    margin: 0 0 0 4px;
+    padding: 0 0.5em;
+    font-size: 0.65rem;
+}
+
+.tt-course.is-past {
+    border-left-color: var(--color-border);
+    opacity: 0.5;
+}
+
+.course-badge {
+    display: inline-block;
+    margin-bottom: 6px;
+    padding: 0.15em 0.7em;
+    border-radius: 999px;
+    background: var(--color-surface-light);
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.course-badge.is-full {
+    background: #ff6b6b;
+    color: var(--color-black);
+}
+
 /* ---------- Footer ---------- */
 .site-footer {
     padding: 28px 0;
@@ -720,7 +983,62 @@ p { margin: 0 0 1em; }
 
     .form-grid { grid-template-columns: 1fr; }
 
+    .tt-nav { flex-wrap: wrap; justify-content: center; }
+    .tt-nav-center { order: -1; width: 100%; }
+
     .form-card { padding: 24px; }
+}
+
+@media (max-width: 700px) {
+    .tt-tabs {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        margin-bottom: 12px;
+    }
+
+    .tt-tab {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px 0;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-small);
+        background: var(--color-surface);
+        color: var(--color-muted);
+        font: inherit;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    .tt-tab strong { color: var(--color-text); font-size: 1rem; }
+    .tt-tab.is-today strong { color: var(--color-yellow); }
+
+    .tt-tab.is-active {
+        border-color: var(--color-yellow);
+        background: var(--color-yellow);
+        color: var(--color-black);
+    }
+
+    .tt-tab.is-active strong { color: var(--color-black); }
+
+    .tt-tab-dot {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--color-yellow);
+    }
+
+    .tt-tab.is-active .tt-tab-dot { background: var(--color-black); }
+
+    .timetable { grid-template-columns: 56px minmax(calc(var(--tt-columns, 1) * 120px), 1fr); }
+
+    .tt-day-head:not(.is-active),
+    .tt-day:not(.is-active) { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

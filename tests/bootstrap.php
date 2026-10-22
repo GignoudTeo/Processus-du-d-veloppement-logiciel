@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/accounts.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/form.php';
 require_once __DIR__ . '/../includes/mailer.php';
+require_once __DIR__ . '/../includes/planning.php';
 require_once __DIR__ . '/../includes/qrcode.php';
 require_once __DIR__ . '/../includes/sports.php';
 
@@ -59,6 +60,28 @@ function createTestDatabase(): PDO
         nom_sport VARCHAR(100) NOT NULL,
         description TEXT DEFAULT NULL
     )');
+    $db->exec('CREATE TABLE salles (
+        id_salle INTEGER PRIMARY KEY AUTOINCREMENT,
+        nom_salle VARCHAR(100) NOT NULL,
+        capacite SMALLINT NOT NULL
+    )');
+    $db->exec('CREATE TABLE cours (
+        id_cours INTEGER PRIMARY KEY AUTOINCREMENT,
+        titre VARCHAR(150) NOT NULL,
+        id_sport INTEGER NOT NULL REFERENCES sports(id_sport),
+        id_coach INTEGER NOT NULL REFERENCES coachs(id_coach),
+        id_salle INTEGER NOT NULL REFERENCES salles(id_salle),
+        date_debut TIMESTAMP NOT NULL,
+        date_fin TIMESTAMP NOT NULL,
+        nb_places_max SMALLINT NOT NULL
+    )');
+    $db->exec("CREATE TABLE reservations (
+        id_reservation INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_cours INTEGER NOT NULL REFERENCES cours(id_cours) ON DELETE CASCADE,
+        id_adherent INTEGER NOT NULL REFERENCES adherents(id_adherent) ON DELETE CASCADE,
+        statut VARCHAR(20) NOT NULL DEFAULT 'confirmee',
+        UNIQUE (id_cours, id_adherent)
+    )");
 
     return $db;
 }

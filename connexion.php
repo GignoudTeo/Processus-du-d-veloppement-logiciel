@@ -24,12 +24,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Remplis ton adresse mail et ton mot de passe.';
     } else {
         try {
-            if (login(getDatabaseConnection(), $email, $password)) {
+            $result = login(getDatabaseConnection(), $email, $password);
+
+            if ($result === LOGIN_OK) {
                 header('Location: index.php');
                 exit;
             }
             // Même message que l'email existe ou non, pour ne pas révéler les comptes existants
-            $error = 'Adresse mail ou mot de passe incorrect.';
+            $error = $result === LOGIN_NOT_CONFIRMED
+                ? 'Ton compte n\'est pas encore activé : clique sur le lien reçu par mail.'
+                : 'Adresse mail ou mot de passe incorrect.';
         } catch (PDOException $e) {
             error_log('Connexion : ' . $e->getMessage());
             $error = 'Connexion impossible pour le moment, réessaie plus tard.';

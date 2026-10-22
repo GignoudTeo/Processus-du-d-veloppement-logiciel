@@ -35,7 +35,9 @@ CREATE TABLE comptes (
     email VARCHAR(191) NOT NULL UNIQUE,
     mot_de_passe_hash VARCHAR(255) NOT NULL,
     role role_compte NOT NULL DEFAULT 'adherent',
-    date_creation TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    date_creation TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    email_confirme BOOLEAN NOT NULL DEFAULT FALSE,
+    jeton_confirmation CHAR(64) DEFAULT NULL
 );
 
 -- --------------------------------------------------------
@@ -151,11 +153,11 @@ CREATE INDEX idx_reservations_adherent
 -- 6. Données de test : comptes
 -- --------------------------------------------------------
 INSERT INTO comptes (
-    id_compte, email, mot_de_passe_hash, role
+    id_compte, email, mot_de_passe_hash, role, email_confirme
 ) VALUES
-(1, 'admin@basicfit.com', '$2y$10$abcdefghijklmnopqrstuv', 'admin'),
-(2, 'coach.marc@basicfit.com', '$2y$10$abcdefghijklmnopqrstuv', 'coach'),
-(3, 'adherent.lucas@email.com', '$2y$10$abcdefghijklmnopqrstuv', 'adherent');
+(1, 'admin@basicfit.com', '$2y$10$abcdefghijklmnopqrstuv', 'admin', TRUE),
+(2, 'coach.marc@basicfit.com', '$2y$10$abcdefghijklmnopqrstuv', 'coach', TRUE),
+(3, 'adherent.lucas@email.com', '$2y$10$abcdefghijklmnopqrstuv', 'adherent', TRUE);
 
 -- --------------------------------------------------------
 -- 7. Données de test : administrateurs, coachs et adhérents

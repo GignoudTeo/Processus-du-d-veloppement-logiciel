@@ -9,6 +9,8 @@ define('QR_VALIDITY', 60);
 if (is_file(__DIR__ . '/config.local.php')) {
     require_once __DIR__ . '/config.local.php';
 }
+// Adresse du site, pour les liens envoyés par mail
+defined('APP_URL') || define('APP_URL', 'http://localhost:8082');
 defined('SMTP_HOST') || define('SMTP_HOST', 'smtp.gmail.com');
 defined('SMTP_PORT') || define('SMTP_PORT', 587);
 defined('SMTP_USER') || define('SMTP_USER', '');

@@ -149,6 +149,11 @@ CREATE TABLE reservations (
 CREATE INDEX idx_reservations_adherent
     ON reservations(id_adherent);
 
+ALTER TABLE comptes
+  ADD COLUMN IF NOT EXISTS email_confirme BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS jeton_confirmation CHAR(64) DEFAULT NULL;
+
+ALTER TABLE comptes ALTER COLUMN email_confirme SET DEFAULT FALSE;
 -- --------------------------------------------------------
 -- 6. Données de test : comptes
 -- --------------------------------------------------------

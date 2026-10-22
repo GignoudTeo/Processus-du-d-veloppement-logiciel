@@ -7,11 +7,14 @@ function startSession(): void
         return;
     }
 
-    session_set_cookie_params([
-        'httponly' => true,
-        'samesite' => 'Lax',
-        'secure'   => !empty($_SERVER['HTTPS']),
-    ]);
+    // Cookies désactivés pendant les tests unitaires (pas de navigateur)
+    if (ini_get('session.use_cookies')) {
+        session_set_cookie_params([
+            'httponly' => true,
+            'samesite' => 'Lax',
+            'secure'   => !empty($_SERVER['HTTPS']),
+        ]);
+    }
     session_start();
 }
 

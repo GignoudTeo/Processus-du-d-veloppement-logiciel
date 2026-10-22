@@ -67,11 +67,15 @@ function currentUser(): ?array
     return $_SESSION['user'] ?? null;
 }
 
-// Renvoie true si l'email et le mot de passe sont bons, et ouvre la session
-function login(PDO $db, string $email, string $password): bool
+const LOGIN_OK            = 'ok';
+const LOGIN_INVALID       = 'invalide';
+const LOGIN_NOT_CONFIRMED = 'non_confirme';
+
+// Renvoie LOGIN_OK (et ouvre la session), LOGIN_INVALID ou LOGIN_NOT_CONFIRMED
+function login(PDO $db, string $email, string $password): string
 {
     $statement = $db->prepare(
-        'SELECT c.id_compte, c.email, c.mot_de_passe_hash, c.role,
+        'SELECT c.id_compte, c.email, c.mot_de_passe_hash, c.role, c.email_confirme,
                 COALESCE(a.prenom, co.prenom, ad.prenom) AS prenom
          FROM comptes c
          LEFT JOIN adherents a ON a.id_compte = c.id_compte
@@ -83,7 +87,11 @@ function login(PDO $db, string $email, string $password): bool
     $account = $statement->fetch(PDO::FETCH_ASSOC);
 
     if (!$account || !password_verify($password, $account['mot_de_passe_hash'])) {
-        return false;
+        return LOGIN_INVALID;
+    }
+    // Vérifié après le mot de passe, pour ne pas révéler qu'un compte existe
+    if (!$account['email_confirme']) {
+        return LOGIN_NOT_CONFIRMED;
     }
 
     startSession();
@@ -95,7 +103,7 @@ function login(PDO $db, string $email, string $password): bool
         'prenom'    => $account['prenom'] ?? '',
     ];
 
-    return true;
+    return LOGIN_OK;
 }
 
 function logout(): void

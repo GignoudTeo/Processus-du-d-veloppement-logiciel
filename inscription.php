@@ -31,16 +31,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (emailExists($db, $data['email'])) {
                 $errors['email'] = 'Un compte existe déjà avec cette adresse mail.';
             } else {
-                createAdherentAccount($db, $data);
+                $token     = generateConfirmationToken();
+                $accountId = createAdherentAccount($db, $data, $token);
+                $link      = APP_URL . '/confirmation.php?jeton=' . $token;
 
-                // Redirection pour éviter une double inscription si on rafraîchit la page
-                $_SESSION['inscription'] = [
-                    'prenom'   => $data['prenom'],
-                    'email'    => $data['email'],
-                    'mailSent' => sendAccountCreatedMail($data['email'], $data['prenom']),
-                ];
-                header('Location: inscription.php');
-                exit;
+                if (sendConfirmationMail($data['email'], $data['prenom'], $link)) {
+                    // Redirection pour éviter une double inscription si on rafraîchit la page
+                    $_SESSION['inscription'] = ['prenom' => $data['prenom'], 'email' => $data['email']];
+                    header('Location: inscription.php');
+                    exit;
+                }
+
+                // Sans mail, le compte ne pourrait jamais être activé : on annule l'inscription
+                deleteAccount($db, $accountId);
+                $errors['global'] = 'Le mail de confirmation n\'a pas pu être envoyé, réessaie plus tard.';
             }
         } catch (PDOException $e) {
             // 23505 : adresse mail déjà prise (contrainte unique)
@@ -66,12 +70,10 @@ require __DIR__ . '/includes/header.php';
             <div class="form-card success-card">
                 <p class="tag">Compte créé</p>
                 <h1>Bienvenue <span class="highlight"><?= htmlspecialchars($success['prenom']) ?></span></h1>
-                <?php if ($success['mailSent']): ?>
-                    <p class="lead">Un mail de confirmation vient d'être envoyé à <strong><?= htmlspecialchars($success['email']) ?></strong>.</p>
-                <?php else: ?>
-                    <p class="lead">Ton compte est bien créé, mais le mail de confirmation n'a pas pu être envoyé.</p>
-                <?php endif; ?>
-                <a href="connexion.php" class="btn btn-lg">Se connecter</a>
+                <p class="lead">
+                    Un mail vient d'être envoyé à <strong><?= htmlspecialchars($success['email']) ?></strong>.
+                    Clique sur le lien qu'il contient pour activer ton compte, puis connecte-toi.
+                </p>
             </div>
         <?php else: ?>
             <p class="tag">Rejoins la salle</p>

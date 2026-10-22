@@ -66,20 +66,28 @@ function emailExists(PDO $db, string $email, ?int $exceptAccountId = null): bool
     return (bool) $statement->fetchColumn();
 }
 
-// Crée le compte (table comptes) et le profil adhérent (table adherents), renvoie id_compte
-function createAdherentAccount(PDO $db, array $data): int
+// Code secret du lien de confirmation envoyé par mail
+function generateConfirmationToken(): string
+{
+    return bin2hex(random_bytes(32));
+}
+
+// Crée le compte non confirmé (table comptes) et le profil adhérent (table adherents), renvoie id_compte.
+// Seul le hash du jeton est enregistré, comme pour un mot de passe.
+function createAdherentAccount(PDO $db, array $data, string $confirmationToken): int
 {
     $db->beginTransaction();
 
     try {
         $statement = $db->prepare(
-            "INSERT INTO comptes (email, mot_de_passe_hash, role)
-             VALUES (:email, :hash, 'adherent')
+            "INSERT INTO comptes (email, mot_de_passe_hash, role, email_confirme, jeton_confirmation)
+             VALUES (:email, :hash, 'adherent', FALSE, :jeton)
              RETURNING id_compte"
         );
         $statement->execute([
             'email' => $data['email'],
             'hash'  => password_hash($data['mot_de_passe'], PASSWORD_DEFAULT),
+            'jeton' => hash('sha256', $confirmationToken),
         ]);
         $accountId = (int) $statement->fetchColumn();
 
@@ -102,6 +110,19 @@ function createAdherentAccount(PDO $db, array $data): int
         $db->rollBack();
         throw $e;
     }
+}
+
+// Valide le compte lié au jeton du lien. false si le lien est faux ou déjà utilisé
+function confirmEmail(PDO $db, string $confirmationToken): bool
+{
+    $statement = $db->prepare(
+        'UPDATE comptes
+         SET email_confirme = TRUE, jeton_confirmation = NULL
+         WHERE jeton_confirmation = :jeton AND email_confirme = FALSE'
+    );
+    $statement->execute(['jeton' => hash('sha256', $confirmationToken)]);
+
+    return $statement->rowCount() === 1;
 }
 
 // null si le compte n'a pas de profil adhérent (coach, admin)

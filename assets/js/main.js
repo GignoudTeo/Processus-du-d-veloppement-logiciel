@@ -10,6 +10,33 @@
     });
 })();
 
+// Menus déroulants du header (Admin, compte) : un seul ouvert, fermés au clic dehors ou avec Échap
+(function () {
+    const dropdowns = document.querySelectorAll('.nav-dropdown');
+
+    dropdowns.forEach(function (dropdown) {
+        dropdown.addEventListener('toggle', function () {
+            if (!dropdown.open) return;
+            dropdowns.forEach(function (other) {
+                if (other !== dropdown) other.open = false;
+            });
+        });
+    });
+
+    document.addEventListener('click', function (event) {
+        dropdowns.forEach(function (dropdown) {
+            if (!dropdown.contains(event.target)) dropdown.open = false;
+        });
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape') return;
+        dropdowns.forEach(function (dropdown) {
+            dropdown.open = false;
+        });
+    });
+})();
+
 // Bouton "Retour" : le navigateur ressort la page de sa mémoire (bfcache),
 // on la recharge pour afficher l'état réel de la session (ex. après déconnexion)
 window.addEventListener('pageshow', function (event) {

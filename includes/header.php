@@ -9,18 +9,24 @@ $flash      = takeFlash();
 $navLinks = [
     'accueil' => ['label' => 'Accueil', 'href' => 'index.php'],
     'sports'  => ['label' => 'Nos sports', 'href' => 'sports.php'],
-    'qrcode'  => ['label' => 'Mon QR code', 'href' => 'qrcode.php'],
 ];
 if ($user) {
     $navLinks['planning'] = ['label' => 'Planning', 'href' => 'planning.php'];
-    $navLinks['compte']   = ['label' => 'Mon compte', 'href' => 'compte.php'];
-    if ($user['role'] === 'admin') {
-        $navLinks['administration'] = ['label' => 'Administration', 'href' => 'administration.php'];
-        $navLinks['demandes']       = ['label' => 'Demandes coach', 'href' => 'demandes-coach.php'];
+}
+$navLinks['qrcode'] = ['label' => 'Mon QR code', 'href' => 'qrcode.php'];
+
+$isAdmin = $user && $user['role'] === 'admin';
+$roleLabels = ['adherent' => 'Adhérent', 'coach' => 'Coach', 'admin' => 'Administrateur'];
+
+// Pastille du menu Admin : nombre de demandes coach en attente
+$pendingRequests = 0;
+if ($isAdmin) {
+    require_once __DIR__ . '/coach_requests.php';
+    try {
+        $pendingRequests = countPendingCoachRequests(getDatabaseConnection());
+    } catch (PDOException $e) {
+        error_log('Header : ' . $e->getMessage());
     }
-} else {
-    $navLinks['connexion']   = ['label' => 'Connexion', 'href' => 'connexion.php'];
-    $navLinks['inscription'] = ['label' => 'Inscription', 'href' => 'inscription.php'];
 }
 ?>
 <!DOCTYPE html>
@@ -45,20 +51,54 @@ if ($user) {
             <span></span><span></span><span></span>
         </button>
 
-        <nav class="main-nav">
-            <?php foreach ($navLinks as $key => $link): ?>
-                <a href="<?= $link['href'] ?>" class="<?= $key === $activePage ? 'active' : '' ?>">
-                    <?= $link['label'] ?>
-                </a>
-            <?php endforeach; ?>
+        <nav class="main-nav" aria-label="Menu principal">
+            <div class="nav-links">
+                <?php foreach ($navLinks as $key => $link): ?>
+                    <a href="<?= $link['href'] ?>" class="<?= $key === $activePage ? 'active' : '' ?>"><?= $link['label'] ?></a>
+                <?php endforeach; ?>
+            </div>
 
-            <?php if ($user): ?>
-                <span class="nav-user">Bonjour <?= htmlspecialchars($user['prenom']) ?></span>
-                <form method="post" action="deconnexion.php" class="nav-logout">
-                    <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-                    <button type="submit" class="btn btn-outline btn-small">Déconnexion</button>
-                </form>
-            <?php endif; ?>
+            <div class="nav-actions">
+                <?php if ($isAdmin): ?>
+                    <details class="nav-dropdown<?= in_array($activePage, ['administration', 'demandes'], true) ? ' is-current' : '' ?>">
+                        <summary>
+                            Admin
+                            <?php if ($pendingRequests > 0): ?><span class="nav-badge"><?= $pendingRequests ?></span><?php endif; ?>
+                        </summary>
+                        <div class="nav-dropdown-menu">
+                            <p class="nav-dropdown-title">Administration</p>
+                            <a href="administration.php" class="<?= $activePage === 'administration' ? 'active' : '' ?>">Utilisateurs</a>
+                            <a href="demandes-coach.php" class="<?= $activePage === 'demandes' ? 'active' : '' ?>">
+                                Demandes coach
+                                <?php if ($pendingRequests > 0): ?><span class="nav-badge"><?= $pendingRequests ?></span><?php endif; ?>
+                            </a>
+                        </div>
+                    </details>
+                <?php endif; ?>
+
+                <?php if ($user): ?>
+                    <details class="nav-dropdown nav-account<?= $activePage === 'compte' ? ' is-current' : '' ?>">
+                        <summary>
+                            <span class="nav-avatar" aria-hidden="true"><?= htmlspecialchars(mb_strtoupper(mb_substr($user['prenom'] ?: '?', 0, 1))) ?></span>
+                            <?= htmlspecialchars($user['prenom']) ?>
+                        </summary>
+                        <div class="nav-dropdown-menu">
+                            <p class="nav-dropdown-title"><?= $roleLabels[$user['role']] ?? htmlspecialchars($user['role']) ?></p>
+                            <a href="compte.php" class="<?= $activePage === 'compte' ? 'active' : '' ?>">Mon compte</a>
+                            <?php if ($user['role'] === 'adherent'): ?>
+                                <a href="devenir-coach.php">Devenir coach</a>
+                            <?php endif; ?>
+                            <form method="post" action="deconnexion.php" class="nav-logout">
+                                <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                                <button type="submit">Déconnexion</button>
+                            </form>
+                        </div>
+                    </details>
+                <?php else: ?>
+                    <a href="connexion.php" class="nav-login<?= $activePage === 'connexion' ? ' active' : '' ?>">Connexion</a>
+                    <a href="inscription.php" class="btn btn-small">Inscription</a>
+                <?php endif; ?>
+            </div>
         </nav>
     </div>
 </header>

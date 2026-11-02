@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/coach_courses.php';
 require_once __DIR__ . '/includes/planning.php';
+require_once __DIR__ . '/includes/reservations.php';
 require_once __DIR__ . '/includes/sports.php';
 
 $user = requireLogin();
@@ -11,13 +12,7 @@ $activePage   = 'planning';
 $extraScripts = ['assets/js/planning.js?v=' . filemtime(__DIR__ . '/assets/js/planning.js')];
 
 // Filtres choisis : ?sport=ID et/ou ?coach=ID
-$filters = [];
-foreach (['sport', 'coach'] as $key) {
-    $id = filter_var($_GET[$key] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-    if (is_int($id)) {
-        $filters[$key] = $id;
-    }
-}
+$filters = parsePlanningFilters($_GET);
 $sportId = $filters['sport'] ?? null;
 $coachId = $filters['coach'] ?? null;
 
@@ -33,6 +28,8 @@ $databaseError = false;
 $myCoachId     = null;  // renseigné si la personne connectée est coach
 $managesAllCourses = false;  // administrateur : gère toutes les séances
 $participants  = [];  // inscrits, seulement pour les séances que la personne connectée gère
+$myAdherentId  = null;  // renseigné si le compte a un profil adhérent : il peut s'inscrire aux cours
+$myCourseIds   = [];  // cours affichés auxquels la personne connectée est inscrite
 
 try {
     $db        = getDatabaseConnection();
@@ -46,6 +43,10 @@ try {
     );
     $managedCourses = array_filter($courses, fn (array $course) => $managesAllCourses || (int) $course['id_coach'] === $myCoachId);
     $participants   = getCourseParticipants($db, array_column($managedCourses, 'id_cours'));
+    $myAdherentId   = getAdherentIdByAccount($db, $user['id_compte']);
+    if ($myAdherentId !== null) {
+        $myCourseIds = getRegisteredCourseIds($db, $myAdherentId, array_column($courses, 'id_cours'));
+    }
     // Semaine vide : on propose de sauter au prochain cours
     if ($courses === []) {
         $nextCourse = getNextCourseDate($db, $weekEnd, $filters);
@@ -225,6 +226,12 @@ require __DIR__ . '/includes/header.php';
                                     $details['inscrits']         = $participants[(int) $course['id_cours']] ?? [];
                                     $details['retrait_possible'] = !$course['termine'];
                                 }
+                                // Bouton d'inscription dans la fenêtre de détail, pour un compte avec un profil adhérent
+                                $isRegistered = in_array((int) $course['id_cours'], $myCourseIds, true);
+                                if ($myAdherentId !== null) {
+                                    $details['id_cours']    = (int) $course['id_cours'];
+                                    $details['inscription'] = courseRegistrationState($course, $isRegistered);
+                                }
                                 $top    = $percent($course['debut']);
                                 // Un cours qui finit après minuit s'arrête en bas de la grille
                                 $bottom = $course['fin']->format('Y-m-d') > $day ? 100 : $percent($course['fin']);
@@ -240,13 +247,16 @@ require __DIR__ . '/includes/header.php';
                                 ?>
                                 <article class="tt-course<?= $course['termine'] ? ' is-past' : '' ?><?= $course['complet'] ? ' is-full' : '' ?><?= $course['minutes'] < 45 ? ' is-compact' : '' ?>"
                                          tabindex="0" role="button" aria-haspopup="dialog"
-                                         aria-label="<?= htmlspecialchars($course['titre'] . ', ' . $course['debut']->format('H:i') . ' : voir le détail') ?>"
+                                         aria-label="<?= htmlspecialchars($course['titre'] . ', ' . $course['debut']->format('H:i') . ($isRegistered ? ', inscrit' : '') . ' : voir le détail') ?>"
                                          data-course="<?= htmlspecialchars(json_encode($details), ENT_QUOTES) ?>"
                                          style="--sport-color: <?= sportColor((int) $course['id_sport']) ?>;
                                                 top: <?= round($top, 3) ?>%; height: <?= round($bottom - $top, 3) ?>%;
                                                 left: <?= round($course['colonne'] / $course['nb_colonnes'] * 100, 3) ?>%;
                                                 width: <?= round(100 / $course['nb_colonnes'], 3) ?>%;">
-                                    <p class="tt-course-time"><?= $course['debut']->format('H:i') ?> · <?= $course['duree'] ?></p>
+                                    <p class="tt-course-time">
+                                        <?= $course['debut']->format('H:i') ?> · <?= $course['duree'] ?>
+                                        <?php if ($isRegistered): ?><span class="course-badge is-accepted">Inscrit</span><?php endif; ?>
+                                    </p>
                                     <h3><?= htmlspecialchars($course['titre']) ?></h3>
                                     <p class="tt-course-sport"><?= htmlspecialchars($course['nom_sport']) ?></p>
                                     <p><?= htmlspecialchars($coach) ?></p>
@@ -314,6 +324,20 @@ require __DIR__ . '/includes/header.php';
                 <h3>Le sport <small data-field="categorie"></small></h3>
                 <p data-field="sport_description"></p>
             </section>
+
+            <?php if ($myAdherentId !== null): ?>
+                <form class="course-dialog-booking" method="post" action="reservation.php" hidden>
+                    <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                    <input type="hidden" name="id_cours">
+                    <input type="hidden" name="action">
+                    <input type="hidden" name="semaine" value="<?= $weekStart->format('Y-m-d') ?>">
+                    <?php foreach ($filters as $key => $value): ?>
+                        <input type="hidden" name="<?= $key ?>" value="<?= (int) $value ?>">
+                    <?php endforeach; ?>
+                    <p class="course-dialog-booked" hidden>Tu es inscrit(e) à ce cours.</p>
+                    <button type="submit" class="btn btn-block"></button>
+                </form>
+            <?php endif; ?>
 
             <?php if ($managesAllCourses || $myCoachId !== null): ?>
                 <section class="course-dialog-section" data-section="inscrits">

@@ -11,17 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$now  = new DateTimeImmutable('now', new DateTimeZone(PLANNING_TIMEZONE));
-$week = parseWeekParam($_POST['semaine'] ?? null, $now);
-
-// Mêmes filtres qu'avant le retrait
-$filters = [];
-foreach (['sport', 'coach'] as $key) {
-    $id = filter_var($_POST[$key] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-    if (is_int($id)) {
-        $filters[$key] = $id;
-    }
-}
+$now     = new DateTimeImmutable('now', new DateTimeZone(PLANNING_TIMEZONE));
+$week    = parseWeekParam($_POST['semaine'] ?? null, $now);
+$filters = parsePlanningFilters($_POST);
 
 $reservationId = filter_var($_POST['id_reservation'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 

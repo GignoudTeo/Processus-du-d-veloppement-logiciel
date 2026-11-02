@@ -1029,6 +1029,11 @@ p { margin: 0 0 1em; }
 .course-dialog-edit { margin-top: 24px; text-align: center; }
 .course-dialog-edit[hidden] { display: none; }
 
+/* Inscription et désinscription d'un adhérent */
+.course-dialog-booking { margin-top: 24px; }
+.course-dialog-booking .btn:disabled { cursor: not-allowed; transform: none; }
+.course-dialog-booked { margin: 0 0 10px; color: #4ade80; font-weight: 600; }
+
 /* Liste des inscrits, pour le coach de la séance et les administrateurs */
 .course-dialog-participants {
     margin: 0;

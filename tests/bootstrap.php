@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/form.php';
 require_once __DIR__ . '/../includes/mailer.php';
 require_once __DIR__ . '/../includes/planning.php';
 require_once __DIR__ . '/../includes/qrcode.php';
+require_once __DIR__ . '/../includes/reservations.php';
 require_once __DIR__ . '/../includes/sports.php';
 
 // Base SQLite en mémoire avec les mêmes tables que Supabase : les tests ne touchent jamais la vraie base
@@ -85,6 +86,7 @@ function createTestDatabase(): PDO
         id_reservation INTEGER PRIMARY KEY AUTOINCREMENT,
         id_cours INTEGER NOT NULL REFERENCES cours(id_cours) ON DELETE CASCADE,
         id_adherent INTEGER NOT NULL REFERENCES adherents(id_adherent) ON DELETE CASCADE,
+        date_reservation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         statut VARCHAR(20) NOT NULL DEFAULT 'confirmee',
         UNIQUE (id_cours, id_adherent)
     )");

@@ -117,8 +117,29 @@
         }
 
         showParticipants(course);
+        showBooking(course);
 
         dialog.showModal();
+    }
+
+    // Bouton d'inscription : présent seulement pour un compte avec un profil adhérent, masqué si le cours a commencé
+    function showBooking(course) {
+        const form = dialog.querySelector('.course-dialog-booking');
+        if (!form) return;
+
+        form.hidden = !course.inscription;
+        if (!course.inscription) return;
+
+        const registered = course.inscription === 'inscrit';
+        const button = form.querySelector('button');
+        const labels = { inscrit: 'Se désinscrire', complet: 'Complet', disponible: "S'inscrire" };
+
+        form.elements.id_cours.value = course.id_cours;
+        form.elements.action.value = registered ? 'desinscrire' : 'inscrire';
+        form.querySelector('.course-dialog-booked').hidden = !registered;
+        button.textContent = labels[course.inscription];
+        button.disabled = course.inscription === 'complet';
+        button.classList.toggle('btn-danger', registered);
     }
 
     // Liste des inscrits : reçue seulement pour une séance que la personne connectée gère

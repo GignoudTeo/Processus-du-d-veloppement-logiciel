@@ -153,6 +153,20 @@ function parseWeekParam(?string $value, DateTimeImmutable $now): DateTimeImmutab
     return getWeekStart($date);
 }
 
+// Filtres sport / coach valides d'une requête : ['sport' => id, 'coach' => id]
+function parsePlanningFilters(array $input): array
+{
+    $filters = [];
+    foreach (['sport', 'coach'] as $key) {
+        $id = filter_var($input[$key] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if (is_int($id)) {
+            $filters[$key] = $id;
+        }
+    }
+
+    return $filters;
+}
+
 // Lien vers le planning d'une semaine, en gardant les filtres sport / coach choisis
 function planningUrl(DateTimeImmutable $weekStart, array $filters = []): string
 {

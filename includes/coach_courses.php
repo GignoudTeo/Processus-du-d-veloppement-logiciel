@@ -1,5 +1,5 @@
 <?php
-// Séances gérées par les coachs : création, modification et suppression de leurs propres cours
+// Séances gérées par les coachs (leurs propres cours) et les administrateurs (tous les cours)
 require_once __DIR__ . '/planning.php';
 
 const COURSE_TITLE_MAX       = 150;
@@ -20,24 +20,62 @@ function getCoachIdByAccount(PDO $db, int $accountId): ?int
     return $coachId === false ? null : (int) $coachId;
 }
 
+// Rôle lu en base : il a pu changer depuis la connexion
+function isAdminAccount(PDO $db, int $accountId): bool
+{
+    $statement = $db->prepare("SELECT COUNT(*) FROM comptes WHERE id_compte = :compte AND role = 'admin'");
+    $statement->execute(['compte' => $accountId]);
+
+    return (int) $statement->fetchColumn() > 0;
+}
+
+// Coachs à qui un administrateur peut attribuer une séance : profil coach d'un compte coach ou admin, triés par prénom
+function getAssignableCoaches(PDO $db): array
+{
+    return $db->query(
+        "SELECT co.id_coach, co.prenom, co.nom
+         FROM coachs co
+         INNER JOIN comptes c ON c.id_compte = co.id_compte
+         WHERE c.role IN ('coach', 'admin')
+         ORDER BY co.prenom, co.nom"
+    )->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// id_coach choisi dans le formulaire, ou null s'il ne fait pas partie des coachs proposés
+function validateCourseCoach(string $value, array $coaches): ?int
+{
+    $coachId = filter_var($value, FILTER_VALIDATE_INT);
+
+    return in_array($coachId, array_map('intval', array_column($coaches, 'id_coach')), true) ? $coachId : null;
+}
+
 function getRooms(PDO $db): array
 {
     return $db->query('SELECT id_salle, nom_salle, capacite FROM salles ORDER BY nom_salle')->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Cours de ce coach avec son nombre d'inscrits, ou null s'il n'existe pas ou appartient à un autre coach
-function getCoachCourse(PDO $db, int $courseId, int $coachId): ?array
+// Cours avec son coach et son nombre d'inscrits, ou null s'il n'existe pas
+function getCourse(PDO $db, int $courseId): ?array
 {
     $statement = $db->prepare(
-        "SELECT c.*,
+        "SELECT c.*, co.prenom AS coach_prenom, co.nom AS coach_nom,
                 (SELECT COUNT(*) FROM reservations r
                  WHERE r.id_cours = c.id_cours AND r.statut = 'confirmee') AS nb_inscrits
          FROM cours c
-         WHERE c.id_cours = :id AND c.id_coach = :coach"
+         INNER JOIN coachs co ON co.id_coach = c.id_coach
+         WHERE c.id_cours = :id"
     );
-    $statement->execute(['id' => $courseId, 'coach' => $coachId]);
+    $statement->execute(['id' => $courseId]);
 
     return $statement->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+// Comme getCourse(), mais null si le cours appartient à un autre coach
+function getCoachCourse(PDO $db, int $courseId, int $coachId): ?array
+{
+    $course = getCourse($db, $courseId);
+
+    return $course && (int) $course['id_coach'] === $coachId ? $course : null;
 }
 
 // Date et heure saisies (heure de Paris), ou null si elles n'existent pas (31 février, passage à l'heure d'été...)
@@ -133,7 +171,7 @@ function findCourseConflicts(PDO $db, array $data, int $coachId, ?int $ignoredCo
         $errors['id_salle'] = 'Cette salle est déjà occupée sur ce créneau.';
     }
     if ($isTaken('id_coach', $coachId)) {
-        $errors['heure_debut'] = 'Tu as déjà une séance sur ce créneau.';
+        $errors['heure_debut'] = 'Ce coach a déjà une séance sur ce créneau.';
     }
 
     return $errors;

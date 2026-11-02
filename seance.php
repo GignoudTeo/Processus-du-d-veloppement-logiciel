@@ -6,7 +6,8 @@ require_once __DIR__ . '/includes/sports.php';
 
 $user = requireLogin();
 
-// ?id=ID : modification d'une séance du coach. Sans id : création
+// ?id=ID : modification d'une séance. Sans id : création.
+// Un coach gère ses propres séances, un administrateur gère toutes les séances
 $courseId = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 $courseId = is_int($courseId) ? $courseId : null;
 
@@ -15,6 +16,8 @@ $pageTitle   = $courseId ? 'Modifier la séance' : 'Nouvelle séance';
 $formAction  = 'seance.php' . ($courseId ? '?id=' . $courseId : '');
 $course      = null;
 $coachId     = null;
+$managesAllCourses = false;
+$coaches     = [];  // liste de choix du coach, pour un administrateur qui crée une séance
 $rooms       = [];
 $sports      = [];
 $data        = [];
@@ -24,18 +27,24 @@ $unavailable = false;
 try {
     $db      = getDatabaseConnection();
     $coachId = getCoachIdByAccount($db, $user['id_compte']);
-    if ($coachId !== null) {
+    $managesAllCourses = isAdminAccount($db, $user['id_compte']);
+    if ($managesAllCourses) {
+        $coaches = getAssignableCoaches($db);
+        $course  = $courseId ? getCourse($db, $courseId) : null;
+    } elseif ($coachId !== null) {
+        $course = $courseId ? getCoachCourse($db, $courseId, $coachId) : null;
+    }
+    if ($managesAllCourses || $coachId !== null) {
         $rooms  = getRooms($db);
         $sports = getSports($db);
-        $course = $courseId ? getCoachCourse($db, $courseId, $coachId) : null;
     }
 } catch (PDOException $e) {
     error_log('Séance : ' . $e->getMessage());
     $unavailable = true;
 }
 
-if (!$unavailable && $coachId === null) {
-    setFlash('Cette page est réservée aux coachs.');
+if (!$unavailable && !$managesAllCourses && $coachId === null) {
+    setFlash('Cette page est réservée aux coachs et aux administrateurs.');
     header('Location: planning.php');
     exit;
 }
@@ -57,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$unavailable) {
     } elseif ($action === 'supprimer' && $course) {
         try {
             $week = getWeekStart(new DateTimeImmutable($course['date_debut']));
-            setFlash(deleteCourse($db, $courseId, $coachId) ? 'La séance a été supprimée.' : 'Cette séance a déjà été supprimée.');
+            setFlash(deleteCourse($db, $courseId, (int) $course['id_coach']) ? 'La séance a été supprimée.' : 'Cette séance a déjà été supprimée.');
             header('Location: ' . planningUrl($week));
             exit;
         } catch (PDOException $e) {
@@ -67,16 +76,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$unavailable) {
     } else {
         [$data, $errors] = validateCourse($_POST, $rooms, array_map('intval', array_column($sports, 'id_sport')));
 
+        // Une séance garde son coach. À la création, un administrateur le choisit
+        $ownerId = $course ? (int) $course['id_coach'] : $coachId;
+        if ($managesAllCourses && !$course) {
+            $data['id_coach'] = trim((string) ($_POST['id_coach'] ?? ''));
+            $ownerId          = validateCourseCoach($data['id_coach'], $coaches);
+            if ($ownerId === null) {
+                $errors['id_coach'] = 'Choisis un coach.';
+            }
+        }
+
         if ($errors === []) {
             try {
-                $errors = findCourseConflicts($db, $data, $coachId, $courseId);
+                $errors = findCourseConflicts($db, $data, $ownerId, $courseId);
 
                 if ($errors === []) {
                     if ($course) {
-                        $saved = updateCourse($db, $courseId, $coachId, $data);
+                        $saved = updateCourse($db, $courseId, $ownerId, $data);
                         setFlash($saved ? 'La séance a été modifiée.' : 'Cette séance a été supprimée entre-temps.');
                     } else {
-                        createCourse($db, $coachId, $data);
+                        createCourse($db, $ownerId, $data);
                         setFlash('La séance a été créée, elle apparaît dans le planning.');
                     }
                     header('Location: ' . planningUrl(getWeekStart($data['debut'])));
@@ -95,7 +114,7 @@ require __DIR__ . '/includes/header.php';
 
 <section class="form-section">
     <div class="container form-page">
-        <p class="tag">Espace coach</p>
+        <p class="tag"><?= $managesAllCourses ? 'Espace administrateur' : 'Espace coach' ?></p>
         <h1><?= $course ? 'Modifier la' : 'Nouvelle' ?> <span class="highlight">séance</span></h1>
 
         <?php if ($unavailable): ?>
@@ -110,6 +129,23 @@ require __DIR__ . '/includes/header.php';
                 <?php endif; ?>
 
                 <div class="form-grid">
+                    <?php if ($managesAllCourses && $course): ?>
+                        <p class="field-full muted-text">Séance de <?= htmlspecialchars($course['coach_prenom'] . ' ' . $course['coach_nom']) ?></p>
+                    <?php elseif ($managesAllCourses): ?>
+                        <div class="field field-full">
+                            <label for="id_coach">Coach</label>
+                            <select id="id_coach" name="id_coach" required>
+                                <option value="">Choisir un coach</option>
+                                <?php foreach ($coaches as $coach): ?>
+                                    <option value="<?= (int) $coach['id_coach'] ?>" <?= (string) $coach['id_coach'] === ($data['id_coach'] ?? '') ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($coach['prenom'] . ' ' . $coach['nom']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?= fieldError($errors, 'id_coach') ?>
+                        </div>
+                    <?php endif; ?>
+
                     <div class="field field-full">
                         <label for="titre">Titre</label>
                         <input type="text" id="titre" name="titre" value="<?= old($data, 'titre') ?>" maxlength="<?= COURSE_TITLE_MAX ?>" required>

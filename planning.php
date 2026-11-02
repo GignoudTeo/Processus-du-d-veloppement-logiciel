@@ -31,10 +31,12 @@ $courses       = [];
 $nextCourse    = null;
 $databaseError = false;
 $myCoachId     = null;  // renseigné si la personne connectée est coach
+$managesAllCourses = false;  // administrateur : gère toutes les séances
 
 try {
     $db        = getDatabaseConnection();
     $myCoachId = getCoachIdByAccount($db, $user['id_compte']);
+    $managesAllCourses = isAdminAccount($db, $user['id_compte']);
     $sports    = getSports($db);
     $coaches   = getCoaches($db);
     $courses   = array_map(
@@ -103,7 +105,7 @@ require __DIR__ . '/includes/header.php';
                 <?php if ($selectedCoach): ?>
                     <p class="tt-coach-filter">Avec <?= htmlspecialchars($selectedCoach) ?></p>
                 <?php endif; ?>
-                <?php if ($myCoachId !== null): ?>
+                <?php if ($managesAllCourses || $myCoachId !== null): ?>
                     <a class="btn tt-new-course" href="seance.php">Créer une séance</a>
                 <?php endif; ?>
             </div>
@@ -214,8 +216,8 @@ require __DIR__ . '/includes/header.php';
                             <?php foreach ($coursesByDay[$day] ?? [] as $course): ?>
                                 <?php
                                 $details = courseDetails($course);
-                                // Lien de gestion dans la fenêtre de détail : seulement sur les séances du coach connecté
-                                $details['lien_modifier'] = (int) $course['id_coach'] === $myCoachId ? 'seance.php?id=' . (int) $course['id_cours'] : null;
+                                // Lien de gestion dans la fenêtre de détail : séances du coach connecté, ou toutes pour un administrateur
+                                $details['lien_modifier'] = $managesAllCourses || (int) $course['id_coach'] === $myCoachId ? 'seance.php?id=' . (int) $course['id_cours'] : null;
                                 $top    = $percent($course['debut']);
                                 // Un cours qui finit après minuit s'arrête en bas de la grille
                                 $bottom = $course['fin']->format('Y-m-d') > $day ? 100 : $percent($course['fin']);
@@ -306,7 +308,7 @@ require __DIR__ . '/includes/header.php';
                 <p data-field="sport_description"></p>
             </section>
 
-            <?php if ($myCoachId !== null): ?>
+            <?php if ($managesAllCourses || $myCoachId !== null): ?>
                 <a class="btn btn-block course-dialog-edit" hidden>Modifier ou supprimer la séance</a>
             <?php endif; ?>
         </div>

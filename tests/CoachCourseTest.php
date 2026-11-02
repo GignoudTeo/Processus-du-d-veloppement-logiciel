@@ -73,6 +73,58 @@ class CoachCourseTest extends TestCase
         $this->assertNull(getCoachIdByAccount($this->db, 103));
     }
 
+    // ---------- Administrateurs ----------
+
+    public function testCompteAdministrateur(): void
+    {
+        $this->db->exec("INSERT INTO comptes (id_compte, email, mot_de_passe_hash, role) VALUES (104, 'admin@example.com', 'x', 'admin')");
+
+        $this->assertTrue(isAdminAccount($this->db, 104));
+        $this->assertFalse(isAdminAccount($this->db, 101));
+        $this->assertFalse(isAdminAccount($this->db, 999));
+    }
+
+    public function testCoachsProposesAUnAdministrateur(): void
+    {
+        // Compte admin avec un profil coach : proposé. Paul (103) n'est plus coach : pas proposé
+        $this->db->exec("INSERT INTO comptes (id_compte, email, mot_de_passe_hash, role) VALUES (104, 'admin@example.com', 'x', 'admin')");
+        $this->db->exec("INSERT INTO coachs (id_coach, id_compte, nom, prenom) VALUES (4, 104, 'Admin', 'Zoé')");
+
+        $this->assertSame(['Léa', 'Marc', 'Zoé'], array_column(getAssignableCoaches($this->db), 'prenom'));
+    }
+
+    public function testChoixDuCoach(): void
+    {
+        $coaches = getAssignableCoaches($this->db);
+
+        $this->assertSame(2, validateCourseCoach('2', $coaches));
+        foreach (['', 'abc', '3', '99'] as $value) {
+            $this->assertNull(validateCourseCoach($value, $coaches), $value);
+        }
+    }
+
+    public function testAdministrateurLitLaSeanceDeNImporteQuelCoach(): void
+    {
+        $id     = $this->create(2);
+        $course = getCourse($this->db, $id);
+
+        $this->assertSame(2, (int) $course['id_coach']);
+        $this->assertSame('Léa', $course['coach_prenom']);
+        $this->assertNull(getCourse($this->db, 999));
+    }
+
+    public function testSeanceModifieeParUnAdministrateurGardeSonCoach(): void
+    {
+        $id = $this->create(2);
+        [$data] = validateCourse($this->input(['titre' => 'Corrigé']), $this->rooms, [1, 2]);
+
+        $this->assertTrue(updateCourse($this->db, $id, (int) getCourse($this->db, $id)['id_coach'], $data));
+
+        $course = getCourse($this->db, $id);
+        $this->assertSame('Corrigé', $course['titre']);
+        $this->assertSame(2, (int) $course['id_coach']);
+    }
+
     // ---------- validateCourse ----------
 
     public function testSeanceValide(): void

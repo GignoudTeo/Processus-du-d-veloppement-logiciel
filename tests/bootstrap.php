@@ -3,6 +3,7 @@
 
 require_once __DIR__ . '/../includes/accounts.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/coach_courses.php';
 require_once __DIR__ . '/../includes/coach_requests.php';
 require_once __DIR__ . '/../includes/form.php';
 require_once __DIR__ . '/../includes/mailer.php';

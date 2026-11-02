@@ -1023,6 +1023,12 @@ p { margin: 0 0 1em; }
 .tt-course.is-compact p:not(.tt-course-time) { display: none; }
 .tt-course.is-compact:hover p:not(.tt-course-time) { display: block; }
 
+/* Gestion de ses propres séances par le coach */
+.tt-new-course { margin-top: 16px; }
+
+.course-dialog-edit { margin-top: 24px; text-align: center; }
+.course-dialog-edit[hidden] { display: none; }
+
 .tt-coach-filter {
     margin: -0.4em 0 0;
     color: var(--color-muted);
@@ -1070,9 +1076,21 @@ p { margin: 0 0 1em; }
     resize: vertical;
 }
 
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
     outline: none;
     border-color: var(--color-yellow);
+}
+
+.field select {
+    width: 100%;
+    padding: 0.85em 1em;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+    color-scheme: dark;
 }
 
 /* Champs l'un sous l'autre (questionnaire) : pas ceux des grilles à 2 colonnes, qui doivent rester alignés */

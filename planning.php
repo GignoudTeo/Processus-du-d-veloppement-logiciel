@@ -1,9 +1,10 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/coach_courses.php';
 require_once __DIR__ . '/includes/planning.php';
 require_once __DIR__ . '/includes/sports.php';
 
-requireLogin();
+$user = requireLogin();
 
 $pageTitle    = 'Planning';
 $activePage   = 'planning';
@@ -29,12 +30,14 @@ $coaches       = [];
 $courses       = [];
 $nextCourse    = null;
 $databaseError = false;
+$myCoachId     = null;  // renseigné si la personne connectée est coach
 
 try {
-    $db      = getDatabaseConnection();
-    $sports  = getSports($db);
-    $coaches = getCoaches($db);
-    $courses = array_map(
+    $db        = getDatabaseConnection();
+    $myCoachId = getCoachIdByAccount($db, $user['id_compte']);
+    $sports    = getSports($db);
+    $coaches   = getCoaches($db);
+    $courses   = array_map(
         fn (array $course) => prepareCourse($course, $now),
         getCourses($db, $filters + ['from' => $weekStart, 'to' => $weekEnd])
     );
@@ -99,6 +102,9 @@ require __DIR__ . '/includes/header.php';
                 </h1>
                 <?php if ($selectedCoach): ?>
                     <p class="tt-coach-filter">Avec <?= htmlspecialchars($selectedCoach) ?></p>
+                <?php endif; ?>
+                <?php if ($myCoachId !== null): ?>
+                    <a class="btn tt-new-course" href="seance.php">Créer une séance</a>
                 <?php endif; ?>
             </div>
 
@@ -207,6 +213,9 @@ require __DIR__ . '/includes/header.php';
 
                             <?php foreach ($coursesByDay[$day] ?? [] as $course): ?>
                                 <?php
+                                $details = courseDetails($course);
+                                // Lien de gestion dans la fenêtre de détail : seulement sur les séances du coach connecté
+                                $details['lien_modifier'] = (int) $course['id_coach'] === $myCoachId ? 'seance.php?id=' . (int) $course['id_cours'] : null;
                                 $top    = $percent($course['debut']);
                                 // Un cours qui finit après minuit s'arrête en bas de la grille
                                 $bottom = $course['fin']->format('Y-m-d') > $day ? 100 : $percent($course['fin']);
@@ -223,7 +232,7 @@ require __DIR__ . '/includes/header.php';
                                 <article class="tt-course<?= $course['termine'] ? ' is-past' : '' ?><?= $course['complet'] ? ' is-full' : '' ?><?= $course['minutes'] < 45 ? ' is-compact' : '' ?>"
                                          tabindex="0" role="button" aria-haspopup="dialog"
                                          aria-label="<?= htmlspecialchars($course['titre'] . ', ' . $course['debut']->format('H:i') . ' : voir le détail') ?>"
-                                         data-course="<?= htmlspecialchars(json_encode(courseDetails($course)), ENT_QUOTES) ?>"
+                                         data-course="<?= htmlspecialchars(json_encode($details), ENT_QUOTES) ?>"
                                          style="--sport-color: <?= sportColor((int) $course['id_sport']) ?>;
                                                 top: <?= round($top, 3) ?>%; height: <?= round($bottom - $top, 3) ?>%;
                                                 left: <?= round($course['colonne'] / $course['nb_colonnes'] * 100, 3) ?>%;
@@ -296,6 +305,10 @@ require __DIR__ . '/includes/header.php';
                 <h3>Le sport <small data-field="categorie"></small></h3>
                 <p data-field="sport_description"></p>
             </section>
+
+            <?php if ($myCoachId !== null): ?>
+                <a class="btn btn-block course-dialog-edit" hidden>Modifier ou supprimer la séance</a>
+            <?php endif; ?>
         </div>
     </dialog>
 </section>

@@ -109,6 +109,13 @@
         dialog.style.setProperty('--sport-color', course.couleur);
         dialog.querySelector('.course-dialog-bar div').style.width = course.remplissage + '%';
 
+        // Lien présent seulement pour un coach, affiché sur ses propres séances
+        const editLink = dialog.querySelector('.course-dialog-edit');
+        if (editLink) {
+            editLink.hidden = !course.lien_modifier;
+            editLink.href = course.lien_modifier || '#';
+        }
+
         dialog.showModal();
     }
 

@@ -77,3 +77,59 @@
     update();
     setInterval(update, 60 * 1000);
 })();
+
+// Fenêtre de détail : s'ouvre au clic (ou Entrée / Espace) sur un cours
+(function () {
+    const dialog = document.getElementById('course-dialog');
+    if (!dialog || typeof dialog.showModal !== 'function') return;
+
+    function field(name) {
+        return dialog.querySelector('[data-field="' + name + '"]');
+    }
+
+    function open(courseElement) {
+        const course = JSON.parse(courseElement.dataset.course);
+
+        // textContent : le texte est affiché tel quel, jamais interprété comme du HTML.
+        // Un champ vide (null) est masqué.
+        dialog.querySelectorAll('[data-field]').forEach(function (element) {
+            const value = course[element.dataset.field];
+            element.textContent = value || '';
+            element.hidden = !value;
+        });
+
+        // Sections entières (salle, bio du coach, sport) masquées si l'info manque
+        dialog.querySelectorAll('[data-section]').forEach(function (element) {
+            element.hidden = !course[element.dataset.section];
+        });
+
+        field('statut').classList.toggle('is-full', course.statut === 'Complet');
+        field('places').className = 'course-dialog-places is-' + course.niveau;
+
+        dialog.style.setProperty('--sport-color', course.couleur);
+        dialog.querySelector('.course-dialog-bar div').style.width = course.remplissage + '%';
+
+        dialog.showModal();
+    }
+
+    document.querySelectorAll('.tt-course[data-course]').forEach(function (courseElement) {
+        courseElement.addEventListener('click', function () {
+            open(courseElement);
+        });
+        courseElement.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                open(courseElement);
+            }
+        });
+    });
+
+    dialog.querySelector('.course-dialog-close').addEventListener('click', function () {
+        dialog.close();
+    });
+
+    // Clic sur le fond assombri (en dehors du contenu) : on ferme
+    dialog.addEventListener('click', function (event) {
+        if (event.target === dialog) dialog.close();
+    });
+})();

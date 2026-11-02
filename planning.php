@@ -221,6 +221,9 @@ require __DIR__ . '/includes/header.php';
                                 }
                                 ?>
                                 <article class="tt-course<?= $course['termine'] ? ' is-past' : '' ?><?= $course['complet'] ? ' is-full' : '' ?><?= $course['minutes'] < 45 ? ' is-compact' : '' ?>"
+                                         tabindex="0" role="button" aria-haspopup="dialog"
+                                         aria-label="<?= htmlspecialchars($course['titre'] . ', ' . $course['debut']->format('H:i') . ' : voir le détail') ?>"
+                                         data-course="<?= htmlspecialchars(json_encode(courseDetails($course)), ENT_QUOTES) ?>"
                                          style="--sport-color: <?= sportColor((int) $course['id_sport']) ?>;
                                                 top: <?= round($top, 3) ?>%; height: <?= round($bottom - $top, 3) ?>%;
                                                 left: <?= round($course['colonne'] / $course['nb_colonnes'] * 100, 3) ?>%;
@@ -245,6 +248,56 @@ require __DIR__ . '/includes/header.php';
             <?php endif; ?>
         <?php endif; ?>
     </div>
+
+    <!-- Fenêtre de détail d'un cours, remplie en JavaScript au clic -->
+    <dialog class="course-dialog" id="course-dialog" aria-labelledby="course-dialog-title">
+        <div class="course-dialog-body">
+            <button type="button" class="course-dialog-close" aria-label="Fermer">&times;</button>
+
+            <p class="course-dialog-sport"><span data-field="sport"></span></p>
+            <h2 id="course-dialog-title" data-field="titre"></h2>
+            <span class="course-badge" data-field="statut" hidden></span>
+
+            <p class="course-dialog-description" data-field="description"></p>
+
+            <dl class="course-dialog-info">
+                <dt>Date</dt>
+                <dd data-field="jour"></dd>
+
+                <dt>Horaire</dt>
+                <dd><span data-field="horaire"></span> · <span data-field="duree"></span></dd>
+
+                <dt data-section="salle">Salle</dt>
+                <dd data-section="salle">
+                    <span data-field="salle"></span>
+                    <small data-field="salle_adresse"></small>
+                </dd>
+
+                <dt>Coach</dt>
+                <dd>
+                    <span data-field="coach"></span>
+                    <small data-field="coach_specialite"></small>
+                </dd>
+
+                <dt>Participants</dt>
+                <dd>
+                    <span data-field="participants"></span>
+                    <div class="course-dialog-bar"><div></div></div>
+                    <span class="course-dialog-places" data-field="places"></span>
+                </dd>
+            </dl>
+
+            <section class="course-dialog-section" data-section="coach_bio">
+                <h3>Le coach</h3>
+                <p data-field="coach_bio"></p>
+            </section>
+
+            <section class="course-dialog-section" data-section="sport_description">
+                <h3>Le sport <small data-field="categorie"></small></h3>
+                <p data-field="sport_description"></p>
+            </section>
+        </div>
+    </dialog>
 </section>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>

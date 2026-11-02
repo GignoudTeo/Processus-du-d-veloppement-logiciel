@@ -575,4 +575,130 @@ class PlanningTest extends TestCase
     {
         $this->assertSame(['label' => $label, 'level' => $level], placesStatus($registered, $capacity));
     }
+
+    // ---------- formatLongDate ----------
+
+    public function testDateLongue(): void
+    {
+        $this->assertSame('Lundi 2 novembre 2026', formatLongDate(new DateTimeImmutable('2026-11-02')));
+        $this->assertSame('Dimanche 16 août 2026', formatLongDate(new DateTimeImmutable('2026-08-16')));
+    }
+
+    // ---------- courseDetails (fenêtre de détail) ----------
+
+    private function details(array $row, string $now = '2026-01-01'): array
+    {
+        $row = $this->courseRow($row + [
+            'id_sport'     => 1,
+            'nom_sport'    => 'HIIT',
+            'coach_prenom' => 'Marc',
+            'coach_nom'    => 'Martin',
+        ]);
+
+        return courseDetails(prepareCourse($row, new DateTimeImmutable($now)));
+    }
+
+    public function testDetailDUnCoursAVenir(): void
+    {
+        $details = $this->details(['nb_places_max' => 20, 'nb_inscrits' => '5']);
+
+        $this->assertSame('HIIT du soir', $details['titre']);
+        $this->assertSame('HIIT', $details['sport']);
+        $this->assertSame(sportColor(1), $details['couleur']);
+        $this->assertSame('Lundi 2 novembre 2026', $details['jour']);
+        $this->assertSame('19:00 – 20:00', $details['horaire']);
+        $this->assertSame('1 h', $details['duree']);
+        $this->assertSame('Marc Martin', $details['coach']);
+        $this->assertSame('5 / 20 personnes', $details['participants']);
+        $this->assertSame(25, $details['remplissage']);
+        $this->assertSame('15 places restantes', $details['places']);
+        $this->assertSame('ok', $details['niveau']);
+        $this->assertNull($details['statut']);
+    }
+
+    public function testDetailDUnCoursComplet(): void
+    {
+        $details = $this->details(['nb_places_max' => 20, 'nb_inscrits' => '20']);
+
+        $this->assertSame('Complet', $details['statut']);
+        $this->assertNull($details['places']);
+        $this->assertSame(100, $details['remplissage']);
+    }
+
+    public function testDetailDUnCoursTermine(): void
+    {
+        $details = $this->details(['nb_places_max' => 20, 'nb_inscrits' => '20'], '2026-12-01');
+
+        // "Terminé" passe avant "Complet"
+        $this->assertSame('Terminé', $details['statut']);
+        $this->assertNull($details['places']);
+    }
+
+    public function testRemplissagePlafonneA100(): void
+    {
+        $this->assertSame(100, $this->details(['nb_places_max' => 10, 'nb_inscrits' => '12'])['remplissage']);
+    }
+
+    public function testDetailEncodableEnJson(): void
+    {
+        $details = $this->details(['titre' => 'Yoga "zen" & <détente>']);
+
+        $this->assertSame($details, json_decode(json_encode($details), true));
+    }
+
+    // ---------- Toutes les infos du cours (fenêtre de détail) ----------
+
+    public function testCoursContientToutesLesInfosLiees(): void
+    {
+        $this->db->exec("UPDATE cours SET description = 'Séance intense' WHERE id_cours = 2");
+        $this->db->exec("UPDATE sports SET description = 'Intervalles courts' WHERE id_sport = 1");
+        $this->db->exec("UPDATE coachs SET specialite = 'Cardio', bio = 'Coach depuis 5 ans' WHERE id_coach = 1");
+        $this->db->exec("UPDATE salles SET adresse = 'Rez-de-chaussée' WHERE id_salle = 1");
+
+        $course = array_column(getCourses($this->db), null, 'id_cours')[2];
+
+        $this->assertSame('Séance intense', $course['description']);
+        $this->assertSame('Intervalles courts', $course['sport_description']);
+        $this->assertSame('Cardio', $course['nom_categorie']);
+        $this->assertSame('Studio 1', $course['nom_salle']);
+        $this->assertSame('Rez-de-chaussée', $course['salle_adresse']);
+        $this->assertSame('Cardio', $course['coach_specialite']);
+        $this->assertSame('Coach depuis 5 ans', $course['coach_bio']);
+    }
+
+    public function testDetailContientDescriptionSalleCoachEtSport(): void
+    {
+        $details = $this->details([
+            'description'       => 'Séance intense',
+            'sport_description' => 'Intervalles courts',
+            'nom_categorie'     => 'Cardio',
+            'nom_salle'         => 'Studio 1',
+            'salle_adresse'     => 'Rez-de-chaussée',
+            'coach_specialite'  => 'Cardio',
+            'coach_bio'         => 'Coach depuis 5 ans',
+        ]);
+
+        $this->assertSame('Séance intense', $details['description']);
+        $this->assertSame('Intervalles courts', $details['sport_description']);
+        $this->assertSame('Cardio', $details['categorie']);
+        $this->assertSame('Studio 1', $details['salle']);
+        $this->assertSame('Rez-de-chaussée', $details['salle_adresse']);
+        $this->assertSame('Cardio', $details['coach_specialite']);
+        $this->assertSame('Coach depuis 5 ans', $details['coach_bio']);
+    }
+
+    public function testInfosAbsentesOuVidesDeviennentNull(): void
+    {
+        // Champs absents de la ligne, ou remplis d'espaces : la fenêtre masquera ces sections
+        $details = $this->details(['description' => '   ', 'coach_bio' => '']);
+
+        foreach (['description', 'coach_bio', 'sport_description', 'salle', 'salle_adresse', 'coach_specialite', 'categorie'] as $key) {
+            $this->assertNull($details[$key], $key);
+        }
+    }
+
+    public function testInfosNettoyeesDesEspaces(): void
+    {
+        $this->assertSame('Séance intense', $this->details(['description' => "  Séance intense \n"])['description']);
+    }
 }

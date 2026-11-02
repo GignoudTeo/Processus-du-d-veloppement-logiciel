@@ -53,6 +53,9 @@ h1 {
 
 p { margin: 0 0 1em; }
 
+/* L'attribut hidden doit toujours masquer, même sur un élément qui a son propre display */
+[hidden] { display: none !important; }
+
 .container {
     width: 100%;
     max-width: var(--container);
@@ -975,7 +978,13 @@ p { margin: 0 0 1em; }
     background: color-mix(in srgb, var(--sport-color, var(--color-yellow)) 14%, var(--color-surface-light));
     font-size: 0.75rem;
     line-height: 1.35;
-    cursor: default;
+    cursor: pointer;
+}
+
+.tt-course:focus-visible {
+    z-index: 1;
+    outline: 2px solid var(--sport-color, var(--color-yellow));
+    outline-offset: 2px;
 }
 
 /* Au survol, le bloc s'agrandit pour montrer tout son contenu */
@@ -1215,6 +1224,155 @@ p { margin: 0 0 1em; }
     background: #4ade80;
     color: var(--color-black);
 }
+
+/* ---------- Fenêtre de détail d'un cours (planning) ---------- */
+.course-dialog {
+    width: min(520px, calc(100% - 32px));
+    max-height: calc(100vh - 48px);
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-top: 6px solid var(--sport-color, var(--color-yellow));
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.course-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(2px);
+}
+
+.course-dialog-body {
+    position: relative;
+    padding: 28px;
+}
+
+.course-dialog-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--color-surface-light);
+    color: var(--color-text);
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.course-dialog-close:hover { background: var(--color-border); }
+
+.course-dialog-sport {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    color: var(--sport-color, var(--color-yellow));
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.course-dialog-sport::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--sport-color, var(--color-yellow));
+}
+
+.course-dialog h2 {
+    margin: 0 48px 12px 0;
+    font-family: var(--font-title);
+    font-weight: 400;
+    font-size: 1.8rem;
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+.course-dialog-info {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 14px 16px;
+    margin: 20px 0 0;
+}
+
+.course-dialog-info dt {
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding-top: 2px;
+}
+
+.course-dialog-info dd { margin: 0; }
+
+.course-dialog-bar {
+    height: 8px;
+    margin: 8px 0 6px;
+    border-radius: 999px;
+    background: var(--color-surface-light);
+    overflow: hidden;
+}
+
+.course-dialog-bar div {
+    height: 100%;
+    background: var(--sport-color, var(--color-yellow));
+}
+
+.course-dialog-places {
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.course-dialog-description {
+    margin: 16px 0 0;
+    color: var(--color-text);
+    line-height: 1.6;
+}
+
+/* Adresse de la salle, spécialité du coach : sous l'info principale */
+.course-dialog-info small {
+    display: block;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+.course-dialog-section {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--color-border);
+}
+
+.course-dialog-section h3 {
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.course-dialog-section h3 small {
+    margin-left: 6px;
+    color: var(--sport-color, var(--color-yellow));
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.course-dialog-section p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.course-dialog-places.is-ok { color: #4ade80; }
+.course-dialog-places.is-low { color: #fb923c; }
 
 /* ---------- Footer ---------- */
 .site-footer {

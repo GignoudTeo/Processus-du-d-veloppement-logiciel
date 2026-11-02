@@ -43,7 +43,9 @@ function createTestDatabase(): PDO
         id_coach INTEGER PRIMARY KEY AUTOINCREMENT,
         id_compte INTEGER NOT NULL UNIQUE REFERENCES comptes(id_compte) ON DELETE CASCADE,
         nom VARCHAR(100) NOT NULL,
-        prenom VARCHAR(100) NOT NULL
+        prenom VARCHAR(100) NOT NULL,
+        specialite VARCHAR(150) DEFAULT NULL,
+        bio TEXT DEFAULT NULL
     )');
     $db->exec('CREATE TABLE admins (
         id_admin INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,11 +66,13 @@ function createTestDatabase(): PDO
     $db->exec('CREATE TABLE salles (
         id_salle INTEGER PRIMARY KEY AUTOINCREMENT,
         nom_salle VARCHAR(100) NOT NULL,
-        capacite SMALLINT NOT NULL
+        capacite SMALLINT NOT NULL,
+        adresse VARCHAR(255) DEFAULT NULL
     )');
     $db->exec('CREATE TABLE cours (
         id_cours INTEGER PRIMARY KEY AUTOINCREMENT,
         titre VARCHAR(150) NOT NULL,
+        description TEXT DEFAULT NULL,
         id_sport INTEGER NOT NULL REFERENCES sports(id_sport),
         id_coach INTEGER NOT NULL REFERENCES coachs(id_coach),
         id_salle INTEGER NOT NULL REFERENCES salles(id_salle),

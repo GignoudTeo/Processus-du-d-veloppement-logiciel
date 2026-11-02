@@ -11,14 +11,18 @@ const MONTH_NAMES = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'jui
 // 'sport' et 'coach' (id), 'from' / 'to' (cours qui commencent dans [from, to[)
 function getCourses(PDO $db, array $filters = []): array
 {
-    $sql = "SELECT c.id_cours, c.titre, c.date_debut, c.date_fin, c.nb_places_max,
-                   s.id_sport, s.nom_sport,
+    $sql = "SELECT c.id_cours, c.titre, c.description, c.date_debut, c.date_fin, c.nb_places_max,
+                   s.id_sport, s.nom_sport, s.description AS sport_description, cat.nom_categorie,
                    co.id_coach, co.prenom AS coach_prenom, co.nom AS coach_nom,
+                   co.specialite AS coach_specialite, co.bio AS coach_bio,
+                   sa.nom_salle, sa.adresse AS salle_adresse,
                    (SELECT COUNT(*) FROM reservations r
                     WHERE r.id_cours = c.id_cours AND r.statut = 'confirmee') AS nb_inscrits
             FROM cours c
             INNER JOIN sports s ON s.id_sport = c.id_sport
-            INNER JOIN coachs co ON co.id_coach = c.id_coach";
+            INNER JOIN categories cat ON cat.id_categorie = s.id_categorie
+            INNER JOIN coachs co ON co.id_coach = c.id_coach
+            INNER JOIN salles sa ON sa.id_salle = c.id_salle";
 
     [$where, $params] = buildCourseFilters($filters);
     $statement = $db->prepare($sql . $where . ' ORDER BY c.date_debut, c.titre');
@@ -186,6 +190,53 @@ function formatShortDayLabel(DateTimeInterface $date): string
 
     return mb_substr(DAY_NAMES[(int) $date->format('w')], 0, 3) . ' ' . $date->format('j') . ' '
         . $months[(int) $date->format('n') - 1];
+}
+
+// "Lundi 2 novembre 2026"
+function formatLongDate(DateTimeInterface $date): string
+{
+    return DAY_NAMES[(int) $date->format('w')] . ' ' . $date->format('j') . ' '
+        . MONTH_NAMES[(int) $date->format('n') - 1] . ' ' . $date->format('Y');
+}
+
+// Infos d'un cours préparé (prepareCourse) pour la fenêtre de détail du planning
+function courseDetails(array $course): array
+{
+    $capacity = (int) $course['nb_places_max'];
+    $places   = placesStatus($course['nb_inscrits'], $capacity);
+
+    $status = null;
+    if ($course['termine']) {
+        $status = 'Terminé';
+    } elseif ($course['complet']) {
+        $status = 'Complet';
+    }
+
+    // Champ texte facultatif : null si absent ou vide, pour que la fenêtre masque la section
+    $text = fn (string $key) => trim((string) ($course[$key] ?? '')) === '' ? null : trim($course[$key]);
+
+    return [
+        'titre'        => $course['titre'],
+        'description'  => $text('description'),
+        'sport'        => $course['nom_sport'],
+        'categorie'    => $text('nom_categorie'),
+        'sport_description' => $text('sport_description'),
+        'salle'        => $text('nom_salle'),
+        'salle_adresse' => $text('salle_adresse'),
+        'coach_specialite' => $text('coach_specialite'),
+        'coach_bio'    => $text('coach_bio'),
+        'couleur'      => sportColor((int) $course['id_sport']),
+        'jour'         => formatLongDate($course['debut']),
+        'horaire'      => $course['debut']->format('H:i') . ' – ' . $course['fin']->format('H:i'),
+        'duree'        => $course['duree'],
+        'coach'        => $course['coach_prenom'] . ' ' . $course['coach_nom'],
+        'participants' => $course['nb_inscrits'] . ' / ' . $capacity . ' personnes',
+        'remplissage'  => $capacity > 0 ? min(100, (int) round($course['nb_inscrits'] / $capacity * 100)) : 100,
+        // Places restantes seulement pour un cours encore réservable (un cours plein a déjà son badge "Complet")
+        'places'       => $course['termine'] || $course['complet'] ? null : $places['label'],
+        'niveau'       => $places['level'],
+        'statut'       => $status,
+    ];
 }
 
 // 45 -> "45 min", 60 -> "1 h", 90 -> "1 h 30"

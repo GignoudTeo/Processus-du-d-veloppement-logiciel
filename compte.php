@@ -170,6 +170,12 @@ require __DIR__ . '/includes/header.php';
                 <button type="submit" class="btn btn-outline btn-block">Changer le mot de passe</button>
             </form>
 
+            <div class="form-card">
+                <h2>Devenir coach</h2>
+                <p class="muted-text">Tu as envie d'animer des cours ? Remplis le questionnaire, un administrateur étudiera ta demande.</p>
+                <a href="devenir-coach.php" class="btn btn-outline btn-block">Faire une demande</a>
+            </div>
+
             <form class="form-card danger-card" method="post" action="compte.php" novalidate
                   onsubmit="return confirm('Supprimer définitivement ton compte ? Cette action est irréversible.');">
                 <h2>Supprimer mon compte</h2>

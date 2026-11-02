@@ -5,6 +5,8 @@ BEGIN;
 -- NETTOYAGE DES TABLES EXISTANTES
 -- ========================================================
 
+DROP TABLE IF EXISTS demandes_coach_sports CASCADE;
+DROP TABLE IF EXISTS demandes_coach CASCADE;
 DROP TABLE IF EXISTS reservations CASCADE;
 DROP TABLE IF EXISTS cours CASCADE;
 DROP TABLE IF EXISTS sports CASCADE;

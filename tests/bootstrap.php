@@ -3,6 +3,7 @@
 
 require_once __DIR__ . '/../includes/accounts.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/coach_requests.php';
 require_once __DIR__ . '/../includes/form.php';
 require_once __DIR__ . '/../includes/mailer.php';
 require_once __DIR__ . '/../includes/planning.php';
@@ -82,6 +83,26 @@ function createTestDatabase(): PDO
         statut VARCHAR(20) NOT NULL DEFAULT 'confirmee',
         UNIQUE (id_cours, id_adherent)
     )");
+    $db->exec("CREATE TABLE demandes_coach (
+        id_demande INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_compte INTEGER NOT NULL REFERENCES comptes(id_compte) ON DELETE CASCADE,
+        experience VARCHAR(20) NOT NULL,
+        diplome VARCHAR(255) DEFAULT NULL,
+        types_seances TEXT NOT NULL,
+        disponibilites TEXT NOT NULL,
+        motivation TEXT NOT NULL,
+        statut VARCHAR(20) NOT NULL DEFAULT 'en_attente' CHECK (statut IN ('en_attente', 'acceptee', 'refusee')),
+        motif_refus TEXT DEFAULT NULL,
+        date_demande TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        date_traitement TIMESTAMP DEFAULT NULL,
+        id_admin_traitement INTEGER DEFAULT NULL REFERENCES comptes(id_compte) ON DELETE SET NULL
+    )");
+    $db->exec("CREATE UNIQUE INDEX idx_demandes_coach_une_en_attente ON demandes_coach(id_compte) WHERE statut = 'en_attente'");
+    $db->exec('CREATE TABLE demandes_coach_sports (
+        id_demande INTEGER NOT NULL REFERENCES demandes_coach(id_demande) ON DELETE CASCADE,
+        id_sport INTEGER NOT NULL REFERENCES sports(id_sport) ON DELETE CASCADE,
+        PRIMARY KEY (id_demande, id_sport)
+    )');
 
     return $db;
 }

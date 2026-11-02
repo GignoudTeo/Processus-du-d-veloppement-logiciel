@@ -921,6 +921,173 @@ p { margin: 0 0 1em; }
     color: var(--color-black);
 }
 
+/* ---------- Demandes pour devenir coach ---------- */
+.field textarea {
+    width: 100%;
+    padding: 0.85em 1em;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+    resize: vertical;
+}
+
+.field textarea:focus {
+    outline: none;
+    border-color: var(--color-yellow);
+}
+
+/* Champs l'un sous l'autre (questionnaire) : pas ceux des grilles à 2 colonnes, qui doivent rester alignés */
+.form-card > .field + .field,
+.form-card > .field-group + .field,
+.form-card > .field-group + .field-group { margin-top: 20px; }
+
+.form-card > .field:last-of-type { margin-bottom: 28px; }
+
+.field-group {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.field-group legend {
+    margin-bottom: 10px;
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+}
+
+.choice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+    cursor: pointer;
+}
+
+.choice:has(input:checked) { border-color: var(--color-yellow); }
+
+.field .choice input {
+    width: auto;
+    margin: 0;
+    accent-color: var(--color-yellow);
+}
+
+.optional {
+    color: var(--color-muted);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.request-status { margin-bottom: 28px; }
+.request-status h2 { margin-top: 12px; }
+
+.request-reason {
+    padding: 12px 16px;
+    border-left: 4px solid var(--color-yellow);
+    background: var(--color-bg);
+}
+
+.request-tabs {
+    display: flex;
+    gap: 8px;
+    margin: 28px 0 20px;
+}
+
+.request-tabs a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.5em 1.2em;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    color: var(--color-muted);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.request-tabs a.is-active {
+    border-color: var(--color-yellow);
+    color: var(--color-text);
+}
+
+.request-count {
+    min-width: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--color-yellow);
+    color: var(--color-black);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.request-card + .request-card { margin-top: 20px; }
+
+.request-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.request-head h2 { margin-bottom: 4px; }
+.request-head p { margin: 0; font-size: 0.9rem; }
+
+.request-answers {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 12px 20px;
+    margin: 0;
+}
+
+.request-answers dt {
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.request-answers dd { margin: 0; }
+.request-answers .tt-chip { margin: 0 6px 6px 0; }
+
+.request-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+}
+
+.request-actions form { margin: 0; }
+
+.request-refuse { flex: 1; min-width: 260px; }
+.request-refuse summary { list-style: none; display: inline-block; }
+.request-refuse summary::-webkit-details-marker { display: none; }
+.request-refuse[open] summary { margin-bottom: 16px; }
+.request-refuse .field { margin-bottom: 12px; }
+
+.course-badge.is-accepted {
+    background: #4ade80;
+    color: var(--color-black);
+}
+
 /* ---------- Footer ---------- */
 .site-footer {
     padding: 28px 0;
@@ -982,6 +1149,9 @@ p { margin: 0 0 1em; }
     .sports-filter select { min-width: 0; width: 100%; }
 
     .form-grid { grid-template-columns: 1fr; }
+
+    .request-answers { grid-template-columns: 1fr; gap: 4px; }
+    .request-answers dd { margin-bottom: 10px; }
 
     .tt-nav { flex-wrap: wrap; justify-content: center; }
     .tt-nav-center { order: -1; width: 100%; }

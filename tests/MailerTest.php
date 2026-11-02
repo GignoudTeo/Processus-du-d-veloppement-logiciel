@@ -7,6 +7,27 @@ class MailerTest extends TestCase
 {
     private const LINK = 'http://localhost:8082/confirmation.php?jeton=abc123';
 
+    public function testMailDeRetraitDUneSeance(): void
+    {
+        $mail = buildParticipantRemovedMail('Alex', 'HIIT du soir', 'Mardi 10 novembre 2026 à 18:00');
+
+        $this->assertStringContainsString('retiré', $mail['subject']);
+        foreach (['html', 'text'] as $format) {
+            $this->assertStringContainsString('Bonjour Alex', $mail[$format]);
+            $this->assertStringContainsString('HIIT du soir', $mail[$format]);
+            $this->assertStringContainsString('Mardi 10 novembre 2026 à 18:00', $mail[$format]);
+        }
+    }
+
+    public function testMailDeRetraitEchappeLeHtml(): void
+    {
+        $mail = buildParticipantRemovedMail('<b>Alex</b>', '<script>x</script>', '<i>demain</i>');
+
+        $this->assertStringNotContainsString('<script>', $mail['html']);
+        $this->assertStringNotContainsString('<b>Alex', $mail['html']);
+        $this->assertStringNotContainsString('<i>demain', $mail['html']);
+    }
+
     public function testSujet(): void
     {
         $mail = buildConfirmationMail('Alex', self::LINK);

@@ -329,6 +329,144 @@ class CoachCourseTest extends TestCase
         $this->assertSame(0, (int) $this->db->query('SELECT COUNT(*) FROM reservations')->fetchColumn());
     }
 
+    // ---------- Liste des inscrits et retrait d'un participant ----------
+
+    private const BEFORE_COURSE = '2026-11-09 12:00:00+00';
+
+    private function register(int $courseId, string $firstname, string $lastname, string $status = 'confirmee'): int
+    {
+        [$accountId] = createTestAdherent($this->db, ['email' => uniqid() . '@example.com', 'prenom' => $firstname, 'nom' => $lastname]);
+        $adherentId  = $this->db->query("SELECT id_adherent FROM adherents WHERE id_compte = $accountId")->fetchColumn();
+
+        $this->db->prepare('INSERT INTO reservations (id_cours, id_adherent, statut) VALUES (?, ?, ?)')
+            ->execute([$courseId, $adherentId, $status]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    private function remove(int $reservationId, int $accountId, string $now = self::BEFORE_COURSE): array
+    {
+        return removeParticipant($this->db, $reservationId, $accountId, new DateTimeImmutable($now));
+    }
+
+    private function statusOf(int $reservationId): string
+    {
+        return $this->db->query("SELECT statut FROM reservations WHERE id_reservation = $reservationId")->fetchColumn();
+    }
+
+    public function testInscritsConfirmesTriesParNom(): void
+    {
+        $id = $this->create(1);
+        $this->register($id, 'Zoé', 'Martin');
+        $this->register($id, 'Alex', 'Bernard');
+        $this->register($id, 'Annulé', 'Durand', 'annulee');
+        $this->register($id, 'Attente', 'Durand', 'liste_attente');
+        $this->register($id, 'Rejeté', 'Durand', 'rejetee');
+
+        $participants = getCourseParticipants($this->db, [$id]);
+
+        $this->assertSame(['Alex', 'Zoé'], array_column($participants[$id], 'prenom'));
+    }
+
+    public function testInscritsDePlusieursSeances(): void
+    {
+        $first  = $this->create(1);
+        $second = $this->create(1, ['date' => '2026-11-11']);
+        $third  = $this->create(1, ['date' => '2026-11-12']);
+        $this->register($first, 'Alex', 'Bernard');
+        $this->register($second, 'Zoé', 'Martin');
+        $this->register($third, 'Autre', 'Séance');
+
+        $participants = getCourseParticipants($this->db, [$first, $second]);
+
+        $this->assertSame([$first, $second], array_keys($participants));
+    }
+
+    public function testAucuneSeanceDemandee(): void
+    {
+        $this->assertSame([], getCourseParticipants($this->db, []));
+    }
+
+    public function testLeCoachRetireUnParticipantEtLaPlaceSeLibere(): void
+    {
+        $id          = $this->create(1);
+        $reservation = $this->register($id, 'Alex', 'Bernard');
+        $this->assertSame(1, (int) getCourse($this->db, $id)['nb_inscrits']);
+
+        $result = $this->remove($reservation, 101);
+
+        $this->assertSame('removed', $result['status']);
+        $this->assertSame('Alex', $result['reservation']['prenom']);
+        $this->assertSame('HIIT du soir', $result['reservation']['titre']);
+        $this->assertStringContainsString('@example.com', $result['reservation']['email']);
+        $this->assertSame('rejetee', $this->statusOf($reservation));
+        $this->assertSame(0, (int) getCourse($this->db, $id)['nb_inscrits']);
+        $this->assertSame([], getCourseParticipants($this->db, [$id]));
+    }
+
+    public function testUnAutreCoachNePeutPasRetirer(): void
+    {
+        $reservation = $this->register($this->create(1), 'Alex', 'Bernard');
+
+        $this->assertSame('not_found', $this->remove($reservation, 102)['status']);
+        $this->assertSame('confirmee', $this->statusOf($reservation));
+    }
+
+    public function testUnAdherentOuAncienCoachNePeutPasRetirer(): void
+    {
+        $reservation = $this->register($this->create(3), 'Alex', 'Bernard');
+
+        // Compte 103 : profil coach 3, mais son rôle est redevenu adhérent
+        $this->assertSame('not_found', $this->remove($reservation, 103)['status']);
+        $this->assertSame('confirmee', $this->statusOf($reservation));
+    }
+
+    public function testUnAdministrateurPeutRetirer(): void
+    {
+        $this->db->exec("INSERT INTO comptes (id_compte, email, mot_de_passe_hash, role) VALUES (104, 'admin@example.com', 'x', 'admin')");
+        $reservation = $this->register($this->create(2), 'Alex', 'Bernard');
+
+        $this->assertSame('removed', $this->remove($reservation, 104)['status']);
+    }
+
+    public function testReservationIntrouvable(): void
+    {
+        $this->assertSame('not_found', $this->remove(999, 101)['status']);
+    }
+
+    public function testRetraitImpossibleUneFoisLaSeanceCommencee(): void
+    {
+        // 18:00 à Paris = 17:00 UTC
+        $reservation = $this->register($this->create(1), 'Alex', 'Bernard');
+
+        $this->assertSame('started', $this->remove($reservation, 101, '2026-11-10 17:00:00+00')['status']);
+        $this->assertSame('confirmee', $this->statusOf($reservation));
+    }
+
+    public function testRetraitPossibleJusquAuDebut(): void
+    {
+        $reservation = $this->register($this->create(1), 'Alex', 'Bernard');
+
+        $this->assertSame('removed', $this->remove($reservation, 101, '2026-11-10 16:59:00+00')['status']);
+    }
+
+    public function testDeuxRetraitsNeComptentQuUneFois(): void
+    {
+        $reservation = $this->register($this->create(1), 'Alex', 'Bernard');
+
+        $this->remove($reservation, 101);
+
+        $this->assertSame('already_removed', $this->remove($reservation, 101)['status']);
+    }
+
+    public function testSeuleLaReservationConfirmeeEstRetiree(): void
+    {
+        $reservation = $this->register($this->create(1), 'Alex', 'Bernard', 'annulee');
+
+        $this->assertSame('already_removed', $this->remove($reservation, 101)['status']);
+        $this->assertSame('annulee', $this->statusOf($reservation));
+    }
+
     // ---------- courseToFormData ----------
 
     public function testFormulairePreRempliEnHeureDeParis(): void

@@ -78,6 +78,69 @@ function getCoachCourse(PDO $db, int $courseId, int $coachId): ?array
     return $course && (int) $course['id_coach'] === $coachId ? $course : null;
 }
 
+// Inscrits confirmés de plusieurs cours : [id_cours => [['id_reservation', 'prenom', 'nom'], ...]], triés par nom
+function getCourseParticipants(PDO $db, array $courseIds): array
+{
+    if ($courseIds === []) {
+        return [];
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($courseIds), '?'));
+    $statement    = $db->prepare(
+        "SELECT r.id_cours, r.id_reservation, a.prenom, a.nom
+         FROM reservations r
+         INNER JOIN adherents a ON a.id_adherent = r.id_adherent
+         WHERE r.statut = 'confirmee' AND r.id_cours IN ($placeholders)
+         ORDER BY a.nom, a.prenom"
+    );
+    $statement->execute(array_values($courseIds));
+
+    $participants = [];
+    foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $participants[(int) $row['id_cours']][] = [
+            'id_reservation' => (int) $row['id_reservation'],
+            'prenom'         => $row['prenom'],
+            'nom'            => $row['nom'],
+        ];
+    }
+
+    return $participants;
+}
+
+// Retire un participant d'une séance à venir : la réservation passe en 'rejetee' et la place se libère.
+// Permis au coach de la séance et aux administrateurs. Droits lus en base.
+// Renvoie ['status' => 'removed', 'not_found' (ou séance d'un autre coach), 'started' ou 'already_removed',
+//          'reservation' => infos pour le mail du participant, ou null]
+function removeParticipant(PDO $db, int $reservationId, int $accountId, DateTimeImmutable $now): array
+{
+    $statement = $db->prepare(
+        'SELECT r.statut, c.id_coach, c.titre, c.date_debut, a.prenom, co.email
+         FROM reservations r
+         INNER JOIN cours c ON c.id_cours = r.id_cours
+         INNER JOIN adherents a ON a.id_adherent = r.id_adherent
+         INNER JOIN comptes co ON co.id_compte = a.id_compte
+         WHERE r.id_reservation = :id'
+    );
+    $statement->execute(['id' => $reservationId]);
+    $reservation = $statement->fetch(PDO::FETCH_ASSOC);
+
+    $allowed = $reservation && (
+        isAdminAccount($db, $accountId) || (int) $reservation['id_coach'] === getCoachIdByAccount($db, $accountId)
+    );
+    if (!$allowed) {
+        return ['status' => 'not_found', 'reservation' => null];
+    }
+    if (new DateTimeImmutable($reservation['date_debut']) <= $now) {
+        return ['status' => 'started', 'reservation' => $reservation];
+    }
+
+    // Condition sur le statut : deux clics en même temps n'envoient qu'un seul mail
+    $statement = $db->prepare("UPDATE reservations SET statut = 'rejetee' WHERE id_reservation = :id AND statut = 'confirmee'");
+    $statement->execute(['id' => $reservationId]);
+
+    return ['status' => $statement->rowCount() > 0 ? 'removed' : 'already_removed', 'reservation' => $reservation];
+}
+
 // Date et heure saisies (heure de Paris), ou null si elles n'existent pas (31 février, passage à l'heure d'été...)
 function parseCourseDateTime(string $date, string $time): ?DateTimeImmutable
 {

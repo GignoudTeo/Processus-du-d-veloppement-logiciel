@@ -214,6 +214,43 @@ function sendCoachRequestRefusedMail(string $email, string $firstname, string $r
     return sendMail($email, $firstname, buildCoachRequestRefusedMail($firstname, $reason));
 }
 
+// Mail envoyé quand un participant est retiré d'une séance. $when : date et heure déjà formatées
+function buildParticipantRemovedMail(string $firstname, string $courseTitle, string $when): array
+{
+    $safeName  = htmlspecialchars($firstname);
+    $safeTitle = htmlspecialchars($courseTitle);
+    $safeWhen  = htmlspecialchars($when);
+    $button    = mailButton('Voir le planning', APP_URL . '/planning.php');
+
+    $html = mailLayout(<<<HTML
+        <p style="font-size: 16px;">Bonjour {$safeName},</p>
+        <p style="font-size: 16px;">Tu as été retiré(e) de la liste des inscrits de cette séance :</p>
+        <p style="font-size: 15px; margin: 0; padding: 12px 16px; border-left: 4px solid #ffd100; background: #161616;">
+            <strong>{$safeTitle}</strong><br>{$safeWhen}
+        </p>
+        <p style="font-size: 16px; margin-top: 20px;">Ta réservation pour cette séance n'est donc plus valable.</p>
+        <p style="margin: 28px 0 0;">{$button}</p>
+        HTML);
+
+    $text = "Bonjour {$firstname},\n\n"
+        . "Tu as été retiré(e) de la liste des inscrits de cette séance :\n"
+        . "{$courseTitle}\n{$when}\n\n"
+        . "Ta réservation pour cette séance n'est donc plus valable.\n"
+        . "Voir le planning : " . APP_URL . "/planning.php\n\n"
+        . "Une question ? Réponds simplement à ce mail.";
+
+    return [
+        'subject' => 'Tu as été retiré(e) d\'une séance ' . APP_NAME,
+        'html'    => $html,
+        'text'    => $text,
+    ];
+}
+
+function sendParticipantRemovedMail(string $email, string $firstname, string $courseTitle, string $when): bool
+{
+    return sendMail($email, $firstname, buildParticipantRemovedMail($firstname, $courseTitle, $when));
+}
+
 // Choisit le mail selon le changement : bienvenue coach, fin de coach, ou mail générique
 function buildRoleChangeMail(string $firstname, string $oldRole, string $newRole): array
 {

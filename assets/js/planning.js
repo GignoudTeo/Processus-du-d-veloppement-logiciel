@@ -116,7 +116,42 @@
             editLink.href = course.lien_modifier || '#';
         }
 
+        showParticipants(course);
+
         dialog.showModal();
+    }
+
+    // Liste des inscrits : reçue seulement pour une séance que la personne connectée gère
+    function showParticipants(course) {
+        const list = dialog.querySelector('.course-dialog-participants');
+        const template = document.getElementById('participant-row');
+        if (!list || !template || !course.inscrits) return;
+
+        list.textContent = '';
+        dialog.querySelector('.course-dialog-no-participant').hidden = course.inscrits.length > 0;
+
+        course.inscrits.forEach(function (participant) {
+            const name = participant.prenom + ' ' + participant.nom;
+            const row = template.content.cloneNode(true);
+            const form = row.querySelector('form');
+
+            row.querySelector('.course-dialog-participant-name').textContent = name;
+
+            // Pas de croix sur une séance déjà commencée
+            if (course.retrait_possible) {
+                form.elements.id_reservation.value = participant.id_reservation;
+                form.querySelector('button').setAttribute('aria-label', 'Retirer ' + name);
+                form.addEventListener('submit', function (event) {
+                    if (!window.confirm('Retirer ' + name + ' de cette séance ? Cette personne sera prévenue par mail.')) {
+                        event.preventDefault();
+                    }
+                });
+            } else {
+                form.remove();
+            }
+
+            list.appendChild(row);
+        });
     }
 
     document.querySelectorAll('.tt-course[data-course]').forEach(function (courseElement) {

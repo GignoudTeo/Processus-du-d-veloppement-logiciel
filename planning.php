@@ -32,6 +32,7 @@ $nextCourse    = null;
 $databaseError = false;
 $myCoachId     = null;  // renseigné si la personne connectée est coach
 $managesAllCourses = false;  // administrateur : gère toutes les séances
+$participants  = [];  // inscrits, seulement pour les séances que la personne connectée gère
 
 try {
     $db        = getDatabaseConnection();
@@ -43,6 +44,8 @@ try {
         fn (array $course) => prepareCourse($course, $now),
         getCourses($db, $filters + ['from' => $weekStart, 'to' => $weekEnd])
     );
+    $managedCourses = array_filter($courses, fn (array $course) => $managesAllCourses || (int) $course['id_coach'] === $myCoachId);
+    $participants   = getCourseParticipants($db, array_column($managedCourses, 'id_cours'));
     // Semaine vide : on propose de sauter au prochain cours
     if ($courses === []) {
         $nextCourse = getNextCourseDate($db, $weekEnd, $filters);
@@ -216,8 +219,12 @@ require __DIR__ . '/includes/header.php';
                             <?php foreach ($coursesByDay[$day] ?? [] as $course): ?>
                                 <?php
                                 $details = courseDetails($course);
-                                // Lien de gestion dans la fenêtre de détail : séances du coach connecté, ou toutes pour un administrateur
-                                $details['lien_modifier'] = $managesAllCourses || (int) $course['id_coach'] === $myCoachId ? 'seance.php?id=' . (int) $course['id_cours'] : null;
+                                // Gestion dans la fenêtre de détail : séances du coach connecté, ou toutes pour un administrateur
+                                if ($managesAllCourses || (int) $course['id_coach'] === $myCoachId) {
+                                    $details['lien_modifier']    = 'seance.php?id=' . (int) $course['id_cours'];
+                                    $details['inscrits']         = $participants[(int) $course['id_cours']] ?? [];
+                                    $details['retrait_possible'] = !$course['termine'];
+                                }
                                 $top    = $percent($course['debut']);
                                 // Un cours qui finit après minuit s'arrête en bas de la grille
                                 $bottom = $course['fin']->format('Y-m-d') > $day ? 100 : $percent($course['fin']);
@@ -309,7 +316,29 @@ require __DIR__ . '/includes/header.php';
             </section>
 
             <?php if ($managesAllCourses || $myCoachId !== null): ?>
+                <section class="course-dialog-section" data-section="inscrits">
+                    <h3>Inscrits</h3>
+                    <ul class="course-dialog-participants"></ul>
+                    <p class="muted-text course-dialog-no-participant">Aucun inscrit pour le moment.</p>
+                </section>
+
                 <a class="btn btn-block course-dialog-edit" hidden>Modifier ou supprimer la séance</a>
+
+                <!-- Une ligne de la liste des inscrits, copiée en JavaScript -->
+                <template id="participant-row">
+                    <li>
+                        <span class="course-dialog-participant-name"></span>
+                        <form method="post" action="retirer-participant.php">
+                            <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                            <input type="hidden" name="id_reservation">
+                            <input type="hidden" name="semaine" value="<?= $weekStart->format('Y-m-d') ?>">
+                            <?php foreach ($filters as $key => $value): ?>
+                                <input type="hidden" name="<?= $key ?>" value="<?= (int) $value ?>">
+                            <?php endforeach; ?>
+                            <button type="submit" class="course-dialog-remove">&times;</button>
+                        </form>
+                    </li>
+                </template>
             <?php endif; ?>
         </div>
     </dialog>

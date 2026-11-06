@@ -329,6 +329,61 @@ class CoachCourseTest extends TestCase
         $this->assertSame(0, (int) $this->db->query('SELECT COUNT(*) FROM reservations')->fetchColumn());
     }
 
+    // ---------- Annulation d'une séance (US14) ----------
+
+    public function testMotifDAnnulationObligatoire(): void
+    {
+        $this->assertNotNull(validateCancellationReason('')['error']);
+        $this->assertNotNull(validateCancellationReason("   \n ")['error']);
+        $this->assertNotNull(validateCancellationReason(str_repeat('a', COURSE_CANCEL_REASON_MAX + 1))['error']);
+
+        $this->assertSame(['motif' => 'Coach malade', 'error' => null], validateCancellationReason('  Coach malade '));
+    }
+
+    public function testAnnulationRenvoieLesInscritsConfirmesAPrevenir(): void
+    {
+        $id = $this->create(1);
+        $this->register($id, 'Zoé', 'Martin');
+        $this->register($id, 'Alex', 'Bernard');
+        $this->register($id, 'Annulé', 'Durand', 'annulee');
+        $this->register($id, 'Attente', 'Durand', 'liste_attente');
+
+        $participants = cancelCourse($this->db, $id, 1);
+
+        $this->assertSame(['Alex', 'Zoé'], array_column($participants, 'prenom'));
+        foreach ($participants as $participant) {
+            $this->assertStringEndsWith('@example.com', $participant['email']);
+        }
+        $this->assertNull(getCourse($this->db, $id));
+        $this->assertSame(0, (int) $this->db->query('SELECT COUNT(*) FROM reservations')->fetchColumn());
+    }
+
+    public function testAnnulationSansInscrit(): void
+    {
+        $id = $this->create(1);
+
+        $this->assertSame([], cancelCourse($this->db, $id, 1));
+        $this->assertNull(getCourse($this->db, $id));
+    }
+
+    public function testUnCoachNePeutPasAnnulerLaSeanceDUnAutre(): void
+    {
+        $id = $this->create(1);
+        $this->register($id, 'Alex', 'Bernard');
+
+        $this->assertNull(cancelCourse($this->db, $id, 2));
+        $this->assertNotNull(getCourse($this->db, $id));
+        $this->assertSame(1, (int) getCourse($this->db, $id)['nb_inscrits']);
+    }
+
+    public function testSeanceDejaAnnulee(): void
+    {
+        $id = $this->create(1);
+        cancelCourse($this->db, $id, 1);
+
+        $this->assertNull(cancelCourse($this->db, $id, 1));
+    }
+
     // ---------- Liste des inscrits et retrait d'un participant ----------
 
     private const BEFORE_COURSE = '2026-11-09 12:00:00+00';

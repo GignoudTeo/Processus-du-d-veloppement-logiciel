@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/coach_requests.php';
 require_once __DIR__ . '/includes/form.php';
+require_once __DIR__ . '/includes/mailer.php';
 require_once __DIR__ . '/includes/sports.php';
 
 $user = requireLogin();
@@ -42,7 +43,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$unavailable && $isMember && !$pen
 
     if ($errors === []) {
         try {
-            createCoachRequest($db, $user['id_compte'], $data);
+            $requestId = createCoachRequest($db, $user['id_compte'], $data);
+
+            // Prévient tous les admins. Un échec d'envoi n'annule pas la demande : elle reste visible dans l'espace admin
+            try {
+                $applicantName = getApplicantName($db, $user['id_compte']);
+                foreach (getAdminRecipients($db) as $admin) {
+                    if (!sendNewCoachRequestMail($admin['email'], $admin['prenom'], $applicantName, coachRequestUrl($requestId))) {
+                        error_log('Demande coach ' . $requestId . ' : mail non envoyé à ' . $admin['email']);
+                    }
+                }
+            } catch (PDOException $e) {
+                error_log('Demande coach ' . $requestId . ' : notification des admins impossible : ' . $e->getMessage());
+            }
+
             setFlash('Ta demande a bien été envoyée, l\'équipe va l\'étudier.');
             header('Location: devenir-coach.php');
             exit;

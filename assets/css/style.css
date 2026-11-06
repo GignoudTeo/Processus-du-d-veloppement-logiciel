@@ -1229,6 +1229,10 @@ p { margin: 0 0 1em; }
 
 .request-card + .request-card { margin-top: 20px; }
 
+/* Demande ouverte depuis le lien du mail envoyé aux admins */
+.request-card { scroll-margin-top: 100px; }
+.request-card.is-linked { outline: 2px solid var(--color-yellow, #ffd100); outline-offset: 4px; }
+
 .request-head {
     display: flex;
     align-items: flex-start;

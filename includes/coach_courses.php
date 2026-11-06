@@ -291,6 +291,54 @@ function deleteCourse(PDO $db, int $courseId, int $coachId): bool
     return $statement->rowCount() > 0;
 }
 
+const COURSE_CANCEL_REASON_MAX = 1000;
+
+// Motif d'annulation nettoyé, ou message d'erreur : ['motif' => ..., 'error' => null|string]
+function validateCancellationReason(string $reason): array
+{
+    $reason = trim($reason);
+
+    if ($reason === '') {
+        return ['motif' => $reason, 'error' => 'Indique le motif de l\'annulation : il est envoyé par mail aux inscrits.'];
+    }
+    if (mb_strlen($reason) > COURSE_CANCEL_REASON_MAX) {
+        return ['motif' => $reason, 'error' => COURSE_CANCEL_REASON_MAX . ' caractères maximum.'];
+    }
+
+    return ['motif' => $reason, 'error' => null];
+}
+
+// Annule (supprime) une séance et renvoie ses inscrits confirmés à prévenir : [['prenom', 'email'], ...].
+// Inscrits lus et séance supprimée dans la même transaction : personne n'est oublié.
+// Renvoie null si le cours n'existe pas ou appartient à un autre coach
+function cancelCourse(PDO $db, int $courseId, int $coachId): ?array
+{
+    $db->beginTransaction();
+    try {
+        $statement = $db->prepare(
+            "SELECT a.prenom, co.email
+             FROM reservations r
+             INNER JOIN adherents a ON a.id_adherent = r.id_adherent
+             INNER JOIN comptes co ON co.id_compte = a.id_compte
+             WHERE r.id_cours = :id AND r.statut = 'confirmee'
+             ORDER BY a.nom, a.prenom"
+        );
+        $statement->execute(['id' => $courseId]);
+        $participants = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!deleteCourse($db, $courseId, $coachId)) {
+            $db->rollBack();
+            return null;
+        }
+        $db->commit();
+
+        return $participants;
+    } catch (Throwable $e) {
+        $db->rollBack();
+        throw $e;
+    }
+}
+
 // Ligne de la base -> valeurs du formulaire, en heure de Paris
 function courseToFormData(array $course): array
 {

@@ -12,6 +12,22 @@ $db        = getDatabaseConnection();
 $showDone  = ($_GET['onglet'] ?? '') === 'traitees';
 $pageError = null;
 
+// ?demande=ID : lien reçu par mail. Ouvre l'onglet où se trouve la demande (elle a pu être traitée entre-temps)
+$linkedRequestId = filter_var($_GET['demande'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+$linkedRequestId = is_int($linkedRequestId) ? $linkedRequestId : null;
+if ($linkedRequestId !== null && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    try {
+        $linkedRequest = getCoachRequest($db, $linkedRequestId);
+        if ($linkedRequest) {
+            $showDone = $linkedRequest['statut'] !== 'en_attente';
+        } else {
+            $pageError = 'Cette demande est introuvable.';
+        }
+    } catch (PDOException $e) {
+        error_log('Demandes coach : ' . $e->getMessage());
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $requestId = filter_var($_POST['id_demande'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
     $action    = $_POST['action'] ?? '';
@@ -103,7 +119,8 @@ require __DIR__ . '/includes/header.php';
 
         <?php foreach ($requests as $request): ?>
             <?php $name = trim(($request['prenom'] ?? '') . ' ' . ($request['nom'] ?? '')) ?: $request['email']; ?>
-            <article class="form-card request-card">
+            <article class="form-card request-card<?= (int) $request['id_demande'] === $linkedRequestId ? ' is-linked' : '' ?>"
+                     id="demande-<?= (int) $request['id_demande'] ?>">
                 <header class="request-head">
                     <div>
                         <h2><?= htmlspecialchars($name) ?></h2>
@@ -184,5 +201,12 @@ require __DIR__ . '/includes/header.php';
         <?php endforeach; ?>
     </div>
 </section>
+
+<?php if ($linkedRequestId !== null): ?>
+    <script>
+        // Après la connexion, le #demande-ID du lien est perdu : on fait défiler jusqu'à la demande
+        document.querySelector('.request-card.is-linked')?.scrollIntoView({ block: 'start' });
+    </script>
+<?php endif; ?>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>

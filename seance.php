@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/coach_courses.php';
 require_once __DIR__ . '/includes/form.php';
+require_once __DIR__ . '/includes/mailer.php';
 require_once __DIR__ . '/includes/sports.php';
 
 $user = requireLogin();
@@ -63,15 +64,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$unavailable) {
 
     if (!isValidCsrf($_POST['csrf_token'] ?? null)) {
         $errors['global'] = 'La session a expiré, recharge la page et réessaie.';
-    } elseif ($action === 'supprimer' && $course) {
-        try {
-            $week = getWeekStart(new DateTimeImmutable($course['date_debut']));
-            setFlash(deleteCourse($db, $courseId, (int) $course['id_coach']) ? 'La séance a été supprimée.' : 'Cette séance a déjà été supprimée.');
-            header('Location: ' . planningUrl($week));
-            exit;
-        } catch (PDOException $e) {
-            error_log('Séance : ' . $e->getMessage());
-            $errors['global'] = 'Impossible de supprimer la séance pour le moment, réessaie plus tard.';
+    } elseif ($action === 'annuler' && $course) {
+        $cancellation = validateCancellationReason((string) ($_POST['motif'] ?? ''));
+        $cancelReason = $cancellation['motif'];
+
+        if ($cancellation['error'] !== null) {
+            $errors['motif'] = $cancellation['error'];
+        } else {
+            try {
+                $start = (new DateTimeImmutable($course['date_debut']))->setTimezone(new DateTimeZone(PLANNING_TIMEZONE));
+                $participants = cancelCourse($db, $courseId, (int) $course['id_coach']);
+
+                if ($participants === null) {
+                    setFlash('Cette séance a déjà été annulée.');
+                } else {
+                    // Mails envoyés après la suppression : un échec d'envoi n'empêche pas l'annulation
+                    $when   = formatLongDate($start) . ' à ' . $start->format('H:i');
+                    $failed = [];
+                    foreach ($participants as $participant) {
+                        if (!sendCourseCancelledMail($participant['email'], $participant['prenom'], $course['titre'], $when, $cancelReason)) {
+                            $failed[] = $participant['prenom'];
+                        }
+                    }
+
+                    $count = count($participants);
+                    if ($count === 0) {
+                        $message = 'La séance a été annulée. Personne n\'y était inscrit.';
+                    } elseif ($failed === []) {
+                        $message = 'La séance a été annulée. ' . ($count === 1 ? 'L\'inscrit a été prévenu' : 'Les ' . $count . ' inscrits ont été prévenus') . ' par mail.';
+                    } else {
+                        $message = 'La séance a été annulée, mais le mail n\'a pas pu être envoyé à : '
+                            . implode(', ', $failed) . '. Préviens ces personnes toi-même.';
+                    }
+                    setFlash($message);
+                }
+                header('Location: ' . planningUrl(getWeekStart($start)));
+                exit;
+            } catch (PDOException $e) {
+                error_log('Séance : ' . $e->getMessage());
+                $errors['global'] = 'Impossible d\'annuler la séance pour le moment, réessaie plus tard.';
+            }
         }
     } else {
         [$data, $errors] = validateCourse($_POST, $rooms, array_map('intval', array_column($sports, 'id_sport')));
@@ -214,15 +246,20 @@ require __DIR__ . '/includes/header.php';
 
             <?php if ($course): ?>
                 <?php $registered = (int) $course['nb_inscrits']; ?>
-                <form class="form-card" method="post" action="<?= htmlspecialchars($formAction) ?>"
-                      onsubmit="return confirm('Supprimer cette séance ?<?= $registered > 0 ? ' Les réservations de ses ' . $registered . ' inscrit(s) seront aussi supprimées.' : '' ?>');">
+                <form id="annulation" class="form-card" method="post" action="<?= htmlspecialchars($formAction) ?>" novalidate
+                      onsubmit="return confirm('Annuler cette séance ?<?= $registered > 0 ? ' Ses ' . $registered . ' inscrit(s) recevront un mail avec le motif.' : '' ?>');">
                     <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-                    <input type="hidden" name="action" value="supprimer">
-                    <h2>Supprimer la séance</h2>
+                    <input type="hidden" name="action" value="annuler">
+                    <h2>Annuler la séance</h2>
                     <p class="muted-text">
-                        <?= $registered > 0 ? 'Cette séance a ' . $registered . ' inscrit(s) : leurs réservations seront aussi supprimées.' : 'Personne n\'est inscrit à cette séance.' ?>
+                        <?= $registered > 0 ? 'Cette séance a ' . $registered . ' inscrit(s) : leurs réservations seront annulées et chacun recevra un mail avec le motif.' : 'Personne n\'est inscrit à cette séance.' ?>
                     </p>
-                    <button type="submit" class="btn btn-danger">Supprimer la séance</button>
+                    <div class="field field-full">
+                        <label for="motif">Motif de l'annulation <span class="optional">(envoyé par mail aux inscrits)</span></label>
+                        <textarea id="motif" name="motif" rows="3" maxlength="<?= COURSE_CANCEL_REASON_MAX ?>" required><?= htmlspecialchars($cancelReason ?? '') ?></textarea>
+                        <?= fieldError($errors, 'motif') ?>
+                    </div>
+                    <button type="submit" class="btn btn-danger">Annuler la séance</button>
                 </form>
             <?php endif; ?>
         <?php endif; ?>

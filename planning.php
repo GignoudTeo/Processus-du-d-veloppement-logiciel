@@ -346,7 +346,7 @@ require __DIR__ . '/includes/header.php';
                     <p class="muted-text course-dialog-no-participant">Aucun inscrit pour le moment.</p>
                 </section>
 
-                <a class="btn btn-block course-dialog-edit" hidden>Modifier ou supprimer la séance</a>
+                <a class="btn btn-block course-dialog-edit" hidden>Modifier ou annuler la séance</a>
 
                 <!-- Une ligne de la liste des inscrits, copiée en JavaScript -->
                 <template id="participant-row">

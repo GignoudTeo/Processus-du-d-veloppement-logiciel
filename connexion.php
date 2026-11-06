@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = login(getDatabaseConnection(), $email, $password);
 
             if ($result === LOGIN_OK) {
-                header('Location: index.php');
+                header('Location: ' . pullReturnUrl());
                 exit;
             }
             // Même message que l'email existe ou non, pour ne pas révéler les comptes existants

@@ -137,6 +137,45 @@ function getCoachRequests(PDO $db, ?string $status = 'en_attente'): array
     return $requests;
 }
 
+// Comptes administrateurs à prévenir d'une nouvelle demande : [['email', 'prenom'], ...]. Rôle lu en base
+function getAdminRecipients(PDO $db): array
+{
+    return $db->query(
+        "SELECT c.email, COALESCE(ad.prenom, co.prenom, a.prenom, '') AS prenom
+         FROM comptes c
+         LEFT JOIN admins ad ON ad.id_compte = c.id_compte
+         LEFT JOIN coachs co ON co.id_compte = c.id_compte
+         LEFT JOIN adherents a ON a.id_compte = c.id_compte
+         WHERE c.role = 'admin'
+         ORDER BY c.id_compte"
+    )->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Nom affiché du candidat : "Prénom Nom", ou son adresse mail s'il n'a pas de profil adhérent
+function getApplicantName(PDO $db, int $accountId): string
+{
+    $statement = $db->prepare(
+        'SELECT c.email, a.prenom, a.nom
+         FROM comptes c
+         LEFT JOIN adherents a ON a.id_compte = c.id_compte
+         WHERE c.id_compte = :id'
+    );
+    $statement->execute(['id' => $accountId]);
+    $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+    if (!$row) {
+        return '';
+    }
+
+    return trim(($row['prenom'] ?? '') . ' ' . ($row['nom'] ?? '')) ?: $row['email'];
+}
+
+// Lien vers une demande dans l'espace admin (onglet choisi automatiquement par demandes-coach.php)
+function coachRequestUrl(int $requestId): string
+{
+    return APP_URL . '/demandes-coach.php?demande=' . $requestId . '#demande-' . $requestId;
+}
+
 function countPendingCoachRequests(PDO $db): int
 {
     return (int) $db->query("SELECT COUNT(*) FROM demandes_coach WHERE statut = 'en_attente'")->fetchColumn();

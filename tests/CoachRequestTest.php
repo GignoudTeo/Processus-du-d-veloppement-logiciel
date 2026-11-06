@@ -175,6 +175,31 @@ class CoachRequestTest extends TestCase
         $this->assertSame(0, countPendingCoachRequests($this->db));
     }
 
+    // ---------- Notification des admins (US2) ----------
+
+    public function testTousLesAdminsSontPrevenus(): void
+    {
+        $this->db->exec("INSERT INTO comptes (id_compte, email, mot_de_passe_hash, role) VALUES
+            (950, 'admin2@example.com', 'x', 'admin'), (951, 'coach@example.com', 'x', 'coach')");
+
+        $this->assertSame([
+            ['email' => 'admin@example.com', 'prenom' => 'Admin'],
+            ['email' => 'admin2@example.com', 'prenom' => ''],
+        ], getAdminRecipients($this->db));
+    }
+
+    public function testNomDuCandidat(): void
+    {
+        [$accountId] = createTestAdherent($this->db, ['email' => 'zoe@example.com', 'prenom' => 'Zoé', 'nom' => 'Martin']);
+
+        $this->assertSame('Zoé Martin', getApplicantName($this->db, $accountId));
+    }
+
+    public function testLienVersLaDemande(): void
+    {
+        $this->assertSame(APP_URL . '/demandes-coach.php?demande=42#demande-42', coachRequestUrl(42));
+    }
+
     // ---------- acceptCoachRequest ----------
 
     public function testAcceptationPasseLeCompteCoach(): void

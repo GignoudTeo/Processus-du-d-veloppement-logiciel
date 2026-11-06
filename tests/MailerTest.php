@@ -28,6 +28,51 @@ class MailerTest extends TestCase
         $this->assertStringNotContainsString('<i>demain', $mail['html']);
     }
 
+    public function testMailDAnnulationDUneSeanceContientLeMotif(): void
+    {
+        $mail = buildCourseCancelledMail('Alex', 'HIIT du soir', 'Mardi 10 novembre 2026 à 18:00', 'Coach malade');
+
+        $this->assertStringContainsString('annulée', $mail['subject']);
+        $this->assertStringContainsString('HIIT du soir', $mail['subject']);
+        foreach (['html', 'text'] as $format) {
+            $this->assertStringContainsString('Bonjour Alex', $mail[$format]);
+            $this->assertStringContainsString('HIIT du soir', $mail[$format]);
+            $this->assertStringContainsString('Mardi 10 novembre 2026 à 18:00', $mail[$format]);
+            $this->assertStringContainsString('Coach malade', $mail[$format]);
+        }
+    }
+
+    public function testMailDAnnulationEchappeLeHtml(): void
+    {
+        $mail = buildCourseCancelledMail('<b>Alex</b>', '<script>x</script>', 'demain', '<img src=x onerror=alert(1)>');
+
+        $this->assertStringNotContainsString('<script>', $mail['html']);
+        $this->assertStringNotContainsString('<b>Alex', $mail['html']);
+        $this->assertStringNotContainsString('<img', $mail['html']);
+    }
+
+    public function testMailNouvelleDemandeCoachContientLeNomEtLeLien(): void
+    {
+        $link = 'http://localhost:8082/demandes-coach.php?demande=42#demande-42';
+        $mail = buildNewCoachRequestMail('Admin', 'Zoé Martin', $link);
+
+        $this->assertStringContainsString('Zoé Martin', $mail['subject']);
+        $this->assertStringContainsString('href="' . $link . '"', $mail['html']);
+        foreach (['html', 'text'] as $format) {
+            $this->assertStringContainsString('Bonjour Admin', $mail[$format]);
+            $this->assertStringContainsString('Zoé Martin', $mail[$format]);
+            $this->assertStringContainsString($link, $mail[$format]);
+        }
+    }
+
+    public function testMailNouvelleDemandeCoachEchappeLeHtml(): void
+    {
+        $mail = buildNewCoachRequestMail('<b>Admin</b>', '<script>x</script>', 'http://localhost/?a=1');
+
+        $this->assertStringNotContainsString('<script>', $mail['html']);
+        $this->assertStringNotContainsString('<b>Admin', $mail['html']);
+    }
+
     public function testSujet(): void
     {
         $mail = buildConfirmationMail('Alex', self::LINK);

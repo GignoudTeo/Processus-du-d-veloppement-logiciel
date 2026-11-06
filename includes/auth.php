@@ -55,11 +55,26 @@ function requireLogin(): array
 {
     $user = currentUser();
     if (!$user) {
+        // Mémorise la page demandée (ex. lien d'un mail) pour y revenir après la connexion
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+            $_SESSION['apres_connexion'] = basename(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '')
+                . (($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : '');
+        }
         header('Location: connexion.php');
         exit;
     }
 
     return $user;
+}
+
+// Page où revenir après la connexion (mémorisée par requireLogin), ou index.php.
+// Seulement une page du site ("page.php?..."), pour ne jamais rediriger vers un autre site
+function pullReturnUrl(): string
+{
+    $url = $_SESSION['apres_connexion'] ?? '';
+    unset($_SESSION['apres_connexion']);
+
+    return is_string($url) && preg_match('/^[a-z0-9-]+\.php(\?[^\s\\\\]*)?$/i', $url) ? $url : 'index.php';
 }
 
 function requireAdmin(): array

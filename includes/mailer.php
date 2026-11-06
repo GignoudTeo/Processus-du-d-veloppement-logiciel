@@ -214,6 +214,42 @@ function sendCoachRequestRefusedMail(string $email, string $firstname, string $r
     return sendMail($email, $firstname, buildCoachRequestRefusedMail($firstname, $reason));
 }
 
+// Mail envoyé à chaque administrateur quand un adhérent envoie une demande pour devenir coach
+function buildNewCoachRequestMail(string $adminFirstname, string $applicantName, string $requestLink): array
+{
+    $greeting      = $adminFirstname === '' ? 'Bonjour,' : 'Bonjour ' . $adminFirstname . ',';
+    $safeGreeting  = htmlspecialchars($greeting);
+    $safeApplicant = htmlspecialchars($applicantName);
+    $safeLink      = htmlspecialchars($requestLink);
+    $button        = mailButton('Voir la demande', $requestLink);
+
+    $html = mailLayout(<<<HTML
+        <p style="font-size: 16px;">{$safeGreeting}</p>
+        <p style="font-size: 16px;">Une nouvelle demande pour devenir coach vient d'arriver :</p>
+        <p style="font-size: 15px; margin: 0; padding: 12px 16px; border-left: 4px solid #ffd100; background: #161616;">
+            <strong>{$safeApplicant}</strong>
+        </p>
+        <p style="font-size: 16px; margin-top: 20px;">Tu peux consulter ses réponses au questionnaire puis l'accepter ou la refuser.</p>
+        <p style="margin: 28px 0 0;">{$button}</p>
+        <p style="color: #a3a3a3; font-size: 13px; margin-top: 24px;">Si le bouton ne marche pas, copie ce lien dans ton navigateur :<br>{$safeLink}</p>
+        HTML);
+
+    $text = "{$greeting}\n\n"
+        . "Une nouvelle demande pour devenir coach vient d'arriver : {$applicantName}.\n\n"
+        . "Voir la demande : {$requestLink}";
+
+    return [
+        'subject' => 'Nouvelle demande coach : ' . $applicantName,
+        'html'    => $html,
+        'text'    => $text,
+    ];
+}
+
+function sendNewCoachRequestMail(string $email, string $adminFirstname, string $applicantName, string $requestLink): bool
+{
+    return sendMail($email, $adminFirstname, buildNewCoachRequestMail($adminFirstname, $applicantName, $requestLink));
+}
+
 // Mail envoyé quand un participant est retiré d'une séance. $when : date et heure déjà formatées
 function buildParticipantRemovedMail(string $firstname, string $courseTitle, string $when): array
 {
@@ -249,6 +285,47 @@ function buildParticipantRemovedMail(string $firstname, string $courseTitle, str
 function sendParticipantRemovedMail(string $email, string $firstname, string $courseTitle, string $when): bool
 {
     return sendMail($email, $firstname, buildParticipantRemovedMail($firstname, $courseTitle, $when));
+}
+
+// Mail envoyé à chaque inscrit quand le coach annule une séance. $when : date et heure déjà formatées
+function buildCourseCancelledMail(string $firstname, string $courseTitle, string $when, string $reason): array
+{
+    $safeName   = htmlspecialchars($firstname);
+    $safeTitle  = htmlspecialchars($courseTitle);
+    $safeWhen   = htmlspecialchars($when);
+    $safeReason = nl2br(htmlspecialchars($reason));
+    $button     = mailButton('Trouver une autre séance', APP_URL . '/planning.php');
+
+    $html = mailLayout(<<<HTML
+        <p style="font-size: 16px;">Bonjour {$safeName},</p>
+        <p style="font-size: 16px;">Nous sommes désolés : la séance à laquelle tu étais inscrit(e) est <strong style="color: #ffd100;">annulée</strong>.</p>
+        <p style="font-size: 15px; margin: 0; padding: 12px 16px; border-left: 4px solid #ffd100; background: #161616;">
+            <strong>{$safeTitle}</strong><br>{$safeWhen}
+        </p>
+        <p style="font-size: 16px; margin: 20px 0 4px;"><strong>Motif de l'annulation :</strong></p>
+        <p style="font-size: 15px; margin: 0; padding: 12px 16px; border-left: 4px solid #ffd100; background: #161616;">{$safeReason}</p>
+        <p style="font-size: 16px; margin-top: 20px;">Ta réservation est donc annulée. Tu peux t'inscrire à une autre séance depuis le planning.</p>
+        <p style="margin: 28px 0 0;">{$button}</p>
+        HTML);
+
+    $text = "Bonjour {$firstname},\n\n"
+        . "La séance à laquelle tu étais inscrit(e) est annulée :\n"
+        . "{$courseTitle}\n{$when}\n\n"
+        . "Motif de l'annulation :\n{$reason}\n\n"
+        . "Ta réservation est donc annulée. Tu peux t'inscrire à une autre séance depuis le planning.\n"
+        . "Voir le planning : " . APP_URL . "/planning.php\n\n"
+        . "Une question ? Réponds simplement à ce mail.";
+
+    return [
+        'subject' => 'Séance annulée : ' . $courseTitle . ' (' . $when . ')',
+        'html'    => $html,
+        'text'    => $text,
+    ];
+}
+
+function sendCourseCancelledMail(string $email, string $firstname, string $courseTitle, string $when, string $reason): bool
+{
+    return sendMail($email, $firstname, buildCourseCancelledMail($firstname, $courseTitle, $when, $reason));
 }
 
 // Choisit le mail selon le changement : bienvenue coach, fin de coach, ou mail générique

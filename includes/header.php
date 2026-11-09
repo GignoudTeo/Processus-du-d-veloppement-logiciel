@@ -92,7 +92,7 @@ if ($isCoach) {
                                 Demandes coach
                                 <?php if ($pendingRequests > 0): ?><span class="nav-badge"><?= $pendingRequests ?></span><?php endif; ?>
                             </a>
-                            <a href="creer-seance.php" class="<?= $activePage === 'creer-seance' ? 'active' : '' ?>">Créer une séance privatisée</a>
+                            <a href="creer-seance.php?type=privee" class="<?= $activePage === 'creer-seance' ? 'active' : '' ?>">Créer une séance privatisée</a>
                             <a href="statistiques.php" class="<?= $activePage === 'statistiques' ? 'active' : '' ?>">Statistiques</a>
                         </div>
                     </details>
@@ -110,7 +110,7 @@ if ($isCoach) {
                                 Inscriptions à valider
                                 <?php if ($pendingBookings > 0): ?><span class="nav-badge"><?= $pendingBookings ?></span><?php endif; ?>
                             </a>
-                            <a href="seance.php">Créer une séance</a>
+                            <a href="creer-seance.php?type=classique">Créer une séance</a>
                             <?php if ($hasCoachProfile): ?>
                                 <a href="profil-coach.php" class="<?= $activePage === 'profil-coach' ? 'active' : '' ?>">Profil coach</a>
                             <?php endif; ?>

@@ -91,8 +91,10 @@ function getRoomsAvailability(PDO $db, DateTimeImmutable $day, DateTimeImmutable
 }
 
 // Vérifie le formulaire de création. Renvoie [données, erreurs par champ].
-// $rooms : getRoomsAvailability() pour la date choisie ; $coaches : getAssignableCoaches()
-function validateSessionForm(array $input, ?DateTimeImmutable $day, array $rooms, array $coaches, array $validSportIds): array
+// $rooms : getRoomsAvailability() pour la date choisie ; $coaches : coachs autorisés (getAssignableCoaches(), ou le coach connecté).
+// $private : séance privatisée (administrateur), capacité imposée = salle ÷ 5.
+// Sinon séance classique : nombre de places saisi, de 1 à la capacité de la salle
+function validateSessionForm(array $input, ?DateTimeImmutable $day, array $rooms, array $coaches, array $validSportIds, bool $private = true): array
 {
     $data = [
         'date'        => trim((string) ($input['date'] ?? '')),
@@ -147,10 +149,23 @@ function validateSessionForm(array $input, ?DateTimeImmutable $day, array $rooms
         $errors['description'] = '2000 caractères maximum.';
     }
 
+    $places = null;
+    if ($private) {
+        $places = $room['capacite_seance'] ?? null;
+    } else {
+        $data['nb_places_max'] = trim((string) ($input['nb_places_max'] ?? ''));
+        $places = filter_var($data['nb_places_max'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($places === false) {
+            $errors['nb_places_max'] = 'Indique un nombre de places d\'au moins 1.';
+        } elseif ($room && $places > (int) $room['capacite']) {
+            $errors['nb_places_max'] = 'Cette salle ne peut accueillir que ' . (int) $room['capacite'] . ' personnes.';
+        }
+    }
+
     if ($errors === []) {
         $data['debut']         = $slot['debut'];
         $data['fin']           = $slot['fin'];
-        $data['nb_places_max'] = $room['capacite_seance'];
+        $data['nb_places_max'] = $places;
     }
 
     return [$data, $errors];

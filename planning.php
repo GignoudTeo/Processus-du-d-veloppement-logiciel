@@ -114,9 +114,9 @@ require __DIR__ . '/includes/header.php';
                 <?php endif; ?>
                 <?php // Un administrateur a les droits d'un coach, plus la création des séances privatisées ?>
                 <?php if ($managesAllCourses || $myCoachId !== null): ?>
-                    <a class="btn tt-new-course" href="seance.php">Créer une séance</a>
+                    <a class="btn tt-new-course" href="creer-seance.php?type=classique">Créer une séance</a>
                     <?php if ($managesAllCourses): ?>
-                        <a class="btn tt-new-course" href="creer-seance.php">Créer une séance privatisée</a>
+                        <a class="btn tt-new-course" href="creer-seance.php?type=privee">Créer une séance privatisée</a>
                     <?php endif; ?>
                     <a class="btn btn-outline tt-new-course" href="validations.php">Gérer les inscriptions</a>
                 <?php endif; ?>

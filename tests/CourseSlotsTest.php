@@ -156,6 +156,42 @@ class CourseSlotsTest extends TestCase
         $this->assertSame(5, $data['nb_places_max']);
     }
 
+    // ---------- Séance classique : même parcours (salle, créneau libre), nombre de places choisi ----------
+
+    private function validateClassic(array $overrides = []): array
+    {
+        $rooms = getRoomsAvailability($this->db, $this->day, $this->now);
+
+        return validateSessionForm($this->input($overrides), $this->day, $rooms, [['id_coach' => 1]], [1], false);
+    }
+
+    public function testSeanceClassiqueGardeLeNombreDePlacesChoisi(): void
+    {
+        [$data, $errors] = $this->validateClassic(['nb_places_max' => '20']);
+
+        $this->assertSame([], $errors);
+        $this->assertSame(20, $data['nb_places_max']);
+    }
+
+    public function testSeanceClassiqueLimiteeALaCapaciteDeLaSalle(): void
+    {
+        $this->assertArrayHasKey('nb_places_max', $this->validateClassic(['nb_places_max' => '26'])[1]);
+        $this->assertSame([], $this->validateClassic(['nb_places_max' => '25'])[1]);
+    }
+
+    public function testSeanceClassiqueNombreDePlacesObligatoire(): void
+    {
+        $this->assertArrayHasKey('nb_places_max', $this->validateClassic()[1]);
+        $this->assertArrayHasKey('nb_places_max', $this->validateClassic(['nb_places_max' => '0'])[1]);
+    }
+
+    public function testSeanceClassiqueSurUnCreneauPrisRefusee(): void
+    {
+        $this->bookRoom(1, '2026-11-12 17:00:00+00', '2026-11-12 18:00:00+00'); // 18:00 à Paris
+
+        $this->assertArrayHasKey('creneau', $this->validateClassic(['nb_places_max' => '20'])[1]);
+    }
+
     public function testCreneauPrisRefuse(): void
     {
         $this->bookRoom(1, '2026-11-12 17:00:00+00', '2026-11-12 18:00:00+00'); // 18:00 à Paris

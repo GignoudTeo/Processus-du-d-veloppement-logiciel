@@ -49,11 +49,11 @@ if (!$unavailable && !$managesAllCourses && $coachId === null) {
     header('Location: planning.php');
     exit;
 }
-// Création : ici, une séance classique (nombre de places choisi, jusqu'à la capacité de la salle).
-// Coachs et administrateurs y ont accès ; un administrateur choisit le coach (son propre profil coach par défaut).
-// Seuls les administrateurs créent en plus les séances privatisées, à places réduites (salle ÷ 5), sur creer-seance.php (US1)
-if (!$unavailable && !$courseId && $managesAllCourses && $coachId !== null && $_SERVER['REQUEST_METHOD'] !== 'POST') {
-    $data['id_coach'] = (string) $coachId;
+// Création : salle puis créneau libre, sur creer-seance.php (séance classique, ou privatisée pour un administrateur).
+// Cette page ne sert plus qu'à modifier ou annuler une séance
+if (!$unavailable && !$courseId) {
+    header('Location: creer-seance.php?type=classique');
+    exit;
 }
 if (!$unavailable && $courseId && !$course) {
     setFlash('Cette séance est introuvable, ou elle appartient à un autre coach.');
@@ -155,9 +155,6 @@ require __DIR__ . '/includes/header.php';
     <div class="container form-page">
         <p class="tag"><?= $managesAllCourses ? 'Espace administrateur' : 'Espace coach' ?></p>
         <h1><?= $course ? 'Modifier la' : 'Nouvelle' ?> <span class="highlight">séance</span></h1>
-        <?php if (!$course && $managesAllCourses): ?>
-            <p class="lead">Séance classique. Pour une séance privatisée à places réduites, utilise <a href="creer-seance.php">Créer une séance privatisée</a>.</p>
-        <?php endif; ?>
 
         <?php if ($unavailable): ?>
             <p class="lead">La gestion des séances n'est pas disponible pour le moment, réessaie plus tard.</p>

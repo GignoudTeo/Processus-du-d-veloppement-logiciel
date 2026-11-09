@@ -3,6 +3,7 @@
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/coach_courses.php';
 require_once __DIR__ . '/includes/mailer.php';
+require_once __DIR__ . '/includes/reservations.php';
 
 $user = requireLogin();
 
@@ -23,19 +24,24 @@ if (!isValidCsrf($_POST['csrf_token'] ?? null)) {
     setFlash('Ce participant est introuvable.');
 } else {
     try {
-        $result = removeParticipant(getDatabaseConnection(), $reservationId, $user['id_compte'], $now);
+        $db     = getDatabaseConnection();
+        $result = removeParticipant($db, $reservationId, $user['id_compte'], $now);
 
         if ($result['status'] === 'removed') {
             $reservation = $result['reservation'];
             $start       = (new DateTimeImmutable($reservation['date_debut']))->setTimezone(new DateTimeZone(PLANNING_TIMEZONE));
-            $mailSent    = sendParticipantRemovedMail(
-                $reservation['email'],
-                $reservation['prenom'],
-                $reservation['titre'],
-                formatLongDate($start) . ' à ' . $start->format('H:i')
-            );
+            $when        = formatLongDate($start) . ' à ' . $start->format('H:i');
+            $mailSent    = sendParticipantRemovedMail($reservation['email'], $reservation['prenom'], $reservation['titre'], $when);
+
+            // La place libérée est proposée à la première personne de la liste d'attente (US3)
+            $courseId = (int) $db->query('SELECT id_cours FROM reservations WHERE id_reservation = ' . (int) $reservationId)->fetchColumn();
+            $promoted = $courseId ? promoteFromWaitingList($db, $courseId) : null;
+            if ($promoted) {
+                sendWaitingListPromotedMail($promoted['email'], $promoted['prenom'], $reservation['titre'], $when);
+            }
             setFlash($reservation['prenom'] . ' a été retiré(e) de la séance.'
-                . ($mailSent ? ' Un mail l\'a prévenu(e).' : ' Le mail n\'a pas pu être envoyé : préviens cette personne toi-même.'));
+                . ($mailSent ? ' Un mail l\'a prévenu(e).' : ' Le mail n\'a pas pu être envoyé : préviens cette personne toi-même.')
+                . ($promoted ? ' ' . $promoted['prenom'] . ', premier(ère) sur la liste d\'attente, t\'est proposé(e).' : ''));
         } else {
             $messages = [
                 'not_found'       => 'Ce participant est introuvable, ou la séance appartient à un autre coach.',

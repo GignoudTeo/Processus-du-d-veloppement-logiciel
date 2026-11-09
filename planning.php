@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/coach_courses.php';
+require_once __DIR__ . '/includes/form.php';
 require_once __DIR__ . '/includes/planning.php';
 require_once __DIR__ . '/includes/reservations.php';
 require_once __DIR__ . '/includes/sports.php';
@@ -29,7 +30,8 @@ $myCoachId     = null;  // renseigné si la personne connectée est coach
 $managesAllCourses = false;  // administrateur : gère toutes les séances
 $participants  = [];  // inscrits, seulement pour les séances que la personne connectée gère
 $myAdherentId  = null;  // renseigné si le compte a un profil adhérent : il peut s'inscrire aux cours
-$myCourseIds   = [];  // cours affichés auxquels la personne connectée est inscrite
+$myStatuses    = [];  // statut de la personne connectée pour chaque cours affiché : [id_cours => statut]
+$myPositions   = [];  // sa position dans les listes d'attente : [id_cours => position]
 
 try {
     $db        = getDatabaseConnection();
@@ -45,7 +47,8 @@ try {
     $participants   = getCourseParticipants($db, array_column($managedCourses, 'id_cours'));
     $myAdherentId   = getAdherentIdByAccount($db, $user['id_compte']);
     if ($myAdherentId !== null) {
-        $myCourseIds = getRegisteredCourseIds($db, $myAdherentId, array_column($courses, 'id_cours'));
+        $myStatuses  = getBookingStatuses($db, $myAdherentId, array_column($courses, 'id_cours'));
+        $myPositions = waitingListPositions($db, $myAdherentId);
     }
     // Semaine vide : on propose de sauter au prochain cours
     if ($courses === []) {
@@ -109,8 +112,10 @@ require __DIR__ . '/includes/header.php';
                 <?php if ($selectedCoach): ?>
                     <p class="tt-coach-filter">Avec <?= htmlspecialchars($selectedCoach) ?></p>
                 <?php endif; ?>
-                <?php if ($managesAllCourses || $myCoachId !== null): ?>
-                    <a class="btn tt-new-course" href="seance.php">Créer une séance</a>
+                <?php if ($managesAllCourses): ?>
+                    <a class="btn tt-new-course" href="creer-seance.php">Créer une séance</a>
+                <?php elseif ($myCoachId !== null): ?>
+                    <a class="btn tt-new-course" href="validations.php">Gérer les inscriptions</a>
                 <?php endif; ?>
             </div>
 
@@ -223,15 +228,21 @@ require __DIR__ . '/includes/header.php';
                                 // Gestion dans la fenêtre de détail : séances du coach connecté, ou toutes pour un administrateur
                                 if ($managesAllCourses || (int) $course['id_coach'] === $myCoachId) {
                                     $details['lien_modifier']    = 'seance.php?id=' . (int) $course['id_cours'];
+                                    $details['lien_valider']     = (int) $course['id_coach'] === $myCoachId && !$course['termine']
+                                        ? 'validations.php?cours=' . (int) $course['id_cours'] . '#cours-' . (int) $course['id_cours']
+                                        : null;
                                     $details['inscrits']         = $participants[(int) $course['id_cours']] ?? [];
                                     $details['retrait_possible'] = !$course['termine'];
                                 }
-                                // Bouton d'inscription dans la fenêtre de détail, pour un compte avec un profil adhérent
-                                $isRegistered = in_array((int) $course['id_cours'], $myCourseIds, true);
+                                // Inscription dans la fenêtre de détail, pour un compte avec un profil adhérent
+                                $myStatus     = $myStatuses[(int) $course['id_cours']] ?? null;
+                                $isRegistered = in_array($myStatus, BOOKING_ACTIVE_STATUSES, true);
                                 if ($myAdherentId !== null) {
                                     $details['id_cours']    = (int) $course['id_cours'];
-                                    $details['inscription'] = courseRegistrationState($course, $isRegistered);
+                                    $details['inscription'] = courseRegistrationState($course, $myStatus);
+                                    $details['position']    = $myPositions[(int) $course['id_cours']] ?? null;
                                 }
+                                $myBadge = ['en_attente' => 'En attente', 'confirmee' => 'Validé', 'liste_attente' => 'Liste d\'attente'][$myStatus] ?? null;
                                 $top    = $percent($course['debut']);
                                 // Un cours qui finit après minuit s'arrête en bas de la grille
                                 $bottom = $course['fin']->format('Y-m-d') > $day ? 100 : $percent($course['fin']);
@@ -247,7 +258,7 @@ require __DIR__ . '/includes/header.php';
                                 ?>
                                 <article class="tt-course<?= $course['termine'] ? ' is-past' : '' ?><?= $course['complet'] ? ' is-full' : '' ?><?= $course['minutes'] < 45 ? ' is-compact' : '' ?>"
                                          tabindex="0" role="button" aria-haspopup="dialog"
-                                         aria-label="<?= htmlspecialchars($course['titre'] . ', ' . $course['debut']->format('H:i') . ($isRegistered ? ', inscrit' : '') . ' : voir le détail') ?>"
+                                         aria-label="<?= htmlspecialchars($course['titre'] . ', ' . $course['debut']->format('H:i') . ($myBadge ? ', ' . $myBadge : '') . ' : voir le détail') ?>"
                                          data-course="<?= htmlspecialchars(json_encode($details), ENT_QUOTES) ?>"
                                          style="--sport-color: <?= sportColor((int) $course['id_sport']) ?>;
                                                 top: <?= round($top, 3) ?>%; height: <?= round($bottom - $top, 3) ?>%;
@@ -255,7 +266,7 @@ require __DIR__ . '/includes/header.php';
                                                 width: <?= round(100 / $course['nb_colonnes'], 3) ?>%;">
                                     <p class="tt-course-time">
                                         <?= $course['debut']->format('H:i') ?> · <?= $course['duree'] ?>
-                                        <?php if ($isRegistered): ?><span class="course-badge is-accepted">Inscrit</span><?php endif; ?>
+                                        <?php if ($myBadge): ?><span class="course-badge<?= $myStatus === 'confirmee' ? ' is-accepted' : ' is-pending' ?>"><?= $myBadge ?></span><?php endif; ?>
                                     </p>
                                     <h3><?= htmlspecialchars($course['titre']) ?></h3>
                                     <p class="tt-course-sport"><?= htmlspecialchars($course['nom_sport']) ?></p>
@@ -334,7 +345,10 @@ require __DIR__ . '/includes/header.php';
                     <?php foreach ($filters as $key => $value): ?>
                         <input type="hidden" name="<?= $key ?>" value="<?= (int) $value ?>">
                     <?php endforeach; ?>
-                    <p class="course-dialog-booked" hidden>Tu es inscrit(e) à ce cours.</p>
+                    <p class="course-dialog-booked" hidden></p>
+                    <div class="course-dialog-unregister" hidden>
+                        <?= reasonFields('motif', 'Motif de la désinscription', UNREGISTER_REASONS) ?>
+                    </div>
                     <button type="submit" class="btn btn-block"></button>
                 </form>
             <?php endif; ?>
@@ -346,7 +360,8 @@ require __DIR__ . '/includes/header.php';
                     <p class="muted-text course-dialog-no-participant">Aucun inscrit pour le moment.</p>
                 </section>
 
-                <a class="btn btn-block course-dialog-edit" hidden>Modifier ou annuler la séance</a>
+                <a class="btn btn-block course-dialog-validate" hidden>Valider les demandes d'inscription</a>
+                <a class="btn btn-outline btn-block course-dialog-edit" hidden>Modifier ou annuler la séance</a>
 
                 <!-- Une ligne de la liste des inscrits, copiée en JavaScript -->
                 <template id="participant-row">

@@ -1200,7 +1200,8 @@ p { margin: 0 0 1em; }
     margin: 28px 0 20px;
 }
 
-.request-tabs a {
+.request-tabs a,
+.request-tabs button {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -1210,8 +1211,13 @@ p { margin: 0 0 1em; }
     color: var(--color-muted);
     font-weight: 600;
     text-decoration: none;
+    background: none;
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
 }
 
+.request-tabs button.is-active,
 .request-tabs a.is-active {
     border-color: var(--color-yellow);
     color: var(--color-text);
@@ -1434,6 +1440,285 @@ p { margin: 0 0 1em; }
 .course-dialog-places.is-ok { color: #4ade80; }
 .course-dialog-places.is-low { color: #fb923c; }
 
+/* ---------- Inscriptions, historique, statistiques, progression (sprint 5) ---------- */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.field-hint { margin: 6px 0 0; font-size: 0.85rem; }
+
+.field input[readonly] {
+    border-style: dashed;
+    color: var(--color-muted);
+}
+
+.reason-field select,
+.reason-field textarea { margin-top: 0; }
+.reason-field textarea { margin-top: 8px; }
+
+.course-badge.is-pending {
+    background: #fb923c;
+    color: var(--color-black);
+}
+
+/* Onglets de l'espace adhérent */
+.account-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 8px 0 28px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.account-tabs a {
+    padding: 10px 16px;
+    border-bottom: 3px solid transparent;
+    color: var(--color-muted);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.account-tabs a:hover { color: var(--color-text); }
+
+.account-tabs a.is-active {
+    border-bottom-color: var(--color-yellow);
+    color: var(--color-text);
+}
+
+/* Filtre de période (historique, statistiques, profil coach) */
+.period-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.period-filter .field { margin: 0; }
+
+.period-filter input,
+.period-filter select {
+    padding: 0.6em 0.8em;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+    color-scheme: dark;
+}
+
+/* Statuts */
+.status-pill {
+    display: inline-block;
+    padding: 0.2em 0.7em;
+    border-radius: 999px;
+    background: var(--color-surface-light);
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-pill.is-confirmee,
+.status-pill.is-realisee { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+.status-pill.is-en_attente,
+.status-pill.is-liste_attente,
+.status-pill.is-a_venir { background: rgba(251, 146, 60, 0.15); color: #fb923c; }
+.status-pill.is-rejetee,
+.status-pill.is-seance_annulee,
+.status-pill.is-annulee { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
+.status-pill.is-absent,
+.status-pill.is-incomplete { background: var(--color-surface-light); color: var(--color-muted); }
+
+.history-table td { vertical-align: top; }
+.history-table tr.is-upcoming td:first-child { border-left: 3px solid var(--color-yellow); }
+.history-reason { margin: 6px 0 0; font-size: 0.85rem; }
+.history-action { min-width: 0; }
+.history-action[open] { min-width: 260px; }
+.history-summary { margin-bottom: 16px; color: var(--color-muted); }
+.history-summary strong { color: var(--color-text); }
+
+/* Validation des inscriptions (coach) */
+.validation-course { scroll-margin-top: calc(var(--header-height) + 16px); }
+.validation-course.is-highlighted { border-top-color: #fb923c; }
+
+.validation-title {
+    margin: 24px 0 12px;
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.validation-request {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+}
+
+.validation-request + .validation-request { margin-top: 12px; }
+.validation-request .request-actions { margin: 0; padding: 0; border: 0; justify-content: flex-end; }
+
+.member-name { margin: 0 0 6px; font-weight: 700; font-size: 1.05rem; }
+
+.member-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0 0 6px;
+    padding: 0;
+    list-style: none;
+    color: var(--color-muted);
+    font-size: 0.9rem;
+}
+
+.member-facts.is-stats strong { color: var(--color-text); }
+.member-date { margin: 0; font-size: 0.8rem; }
+.refuse-all { margin-top: 16px; }
+
+.validation-lists {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.validation-names { margin: 0; padding-left: 20px; }
+
+/* Création de séance (admin) */
+.room-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.room-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.room-card span { color: #4ade80; font-size: 0.9rem; font-weight: 600; }
+.room-card small { color: var(--color-muted); }
+.room-card:hover:not(:disabled) { border-color: var(--color-yellow); }
+.room-card.is-selected { border-color: var(--color-yellow); background: rgba(255, 209, 0, 0.08); }
+
+.room-card:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.room-card:disabled span { color: var(--color-muted); }
+
+.slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+}
+
+.slot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-small);
+    background: var(--color-bg);
+    cursor: pointer;
+}
+
+.slot input { accent-color: var(--color-yellow); }
+.slot:has(input:checked) { border-color: var(--color-yellow); }
+
+.slot.is-taken {
+    opacity: 0.35;
+    text-decoration: line-through;
+    cursor: not-allowed;
+}
+
+/* Statistiques et profil coach */
+.stat-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    padding: 18px 20px;
+    border: 1px solid var(--color-border);
+    border-top: 4px solid var(--color-yellow);
+    border-radius: var(--radius-small);
+    background: var(--color-surface);
+}
+
+.stat-card strong {
+    display: block;
+    font-family: var(--font-title);
+    font-weight: 400;
+    font-size: 2.2rem;
+    line-height: 1.1;
+}
+
+.stat-card span { color: var(--color-muted); font-size: 0.9rem; }
+.stat-section + .stat-section { margin-top: 24px; }
+.stat-total { min-width: 140px; }
+
+.stat-bar {
+    height: 6px;
+    margin-top: 6px;
+    border-radius: 999px;
+    background: var(--color-surface-light);
+    overflow: hidden;
+}
+
+.stat-bar div { height: 100%; background: var(--color-yellow); }
+
+/* Progression */
+.progression .form-card + .form-card { margin-top: 24px; }
+
+.progression-fields {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.progression-buttons { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+
+.progression-chart-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.progression-chart-head .request-tabs { margin: 0; }
+.progression-chart { position: relative; height: 320px; margin-top: 16px; }
+.progression-actions { display: flex; gap: 8px; white-space: nowrap; }
+.incident-form { margin-top: 16px; }
+
+.course-dialog-unregister { margin-bottom: 12px; }
+
 /* ---------- Footer ---------- */
 .site-footer {
     padding: 28px 0;
@@ -1539,6 +1824,13 @@ p { margin: 0 0 1em; }
     .tt-nav-center { order: -1; width: 100%; }
 
     .form-card { padding: 24px; }
+}
+
+@media (max-width: 860px) {
+    .progression-fields { grid-template-columns: 1fr 1fr; }
+    .validation-request { grid-template-columns: 1fr; }
+    .validation-request .request-actions { justify-content: flex-start; }
+    .validation-lists { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 700px) {

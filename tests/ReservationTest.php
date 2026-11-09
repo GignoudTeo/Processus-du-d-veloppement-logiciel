@@ -2,6 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 
+// Inscription (demande validée par le coach), liste d'attente et désinscription avec motif (US2, US3, US7)
 class ReservationTest extends TestCase
 {
     private const NOW = '2026-11-09 12:00:00+00';
@@ -35,9 +36,9 @@ class ReservationTest extends TestCase
         )->execute([$id, $title, $start, $end, $max]);
     }
 
-    private function adherent(): int
+    private function adherent(string $firstname = 'Alex'): int
     {
-        [$accountId] = createTestAdherent($this->db, ['email' => uniqid('', true) . '@example.com']);
+        [$accountId] = createTestAdherent($this->db, ['email' => uniqid('', true) . '@example.com', 'prenom' => $firstname]);
 
         return getAdherentIdByAccount($this->db, $accountId);
     }
@@ -47,9 +48,9 @@ class ReservationTest extends TestCase
         return registerForCourse($this->db, $adherentId, $courseId, new DateTimeImmutable($now));
     }
 
-    private function unregister(int $adherentId, int $courseId, string $now = self::NOW): string
+    private function unregister(int $adherentId, int $courseId, string $reason = 'Empêchement personnel', string $now = self::NOW): array
     {
-        return unregisterFromCourse($this->db, $adherentId, $courseId, new DateTimeImmutable($now));
+        return unregisterFromCourse($this->db, $adherentId, $courseId, new DateTimeImmutable($now), $reason);
     }
 
     private function statusOf(int $adherentId, int $courseId): string|false
@@ -57,9 +58,20 @@ class ReservationTest extends TestCase
         return $this->db->query("SELECT statut FROM reservations WHERE id_adherent = $adherentId AND id_cours = $courseId")->fetchColumn();
     }
 
-    private function places(int $courseId): int
+    // Le coach valide directement (pour remplir une séance dans les tests)
+    private function validate(int $adherentId, int $courseId): void
     {
-        return (int) array_column(getCourses($this->db), 'nb_inscrits', 'id_cours')[$courseId];
+        $this->db->exec("UPDATE reservations SET statut = 'confirmee' WHERE id_adherent = $adherentId AND id_cours = $courseId");
+    }
+
+    // Adhérent inscrit et validé sur la séance 1 (2 places)
+    private function validatedMember(string $firstname): int
+    {
+        $id = $this->adherent($firstname);
+        $this->register($id, 1);
+        $this->validate($id, 1);
+
+        return $id;
     }
 
     // ---------- Profil adhérent ----------
@@ -78,33 +90,20 @@ class ReservationTest extends TestCase
         $this->assertSame(50, getAdherentIdByAccount($this->db, 104));
     }
 
-    // ---------- Inscription ----------
+    // ---------- Inscription (US2) ----------
 
-    public function testInscriptionImmediateSIlResteDesPlaces(): void
+    public function testInscriptionCreeUneDemandeEnAttente(): void
     {
-        $result = $this->register($this->alex, 1);
-
-        $this->assertSame('registered', $result['status']);
-        $this->assertNull($result['conflict']);
-        $this->assertSame('confirmee', $this->statusOf($this->alex, 1));
-        $this->assertSame(1, $this->places(1));
+        $this->assertSame('requested', $this->register($this->alex, 1)['status']);
+        $this->assertSame('en_attente', $this->statusOf($this->alex, 1));
     }
 
-    public function testCoursComplet(): void
+    public function testUneDemandeNeReservePasDePlace(): void
     {
-        $this->register($this->adherent(), 1);
-        $this->register($this->adherent(), 1);
+        $this->register($this->alex, 1);
 
-        $this->assertSame('full', $this->register($this->alex, 1)['status']);
-        $this->assertFalse($this->statusOf($this->alex, 1));
-        $this->assertSame(2, $this->places(1));
-    }
-
-    public function testDerniereplacePrise(): void
-    {
-        $this->register($this->adherent(), 1);
-
-        $this->assertSame('registered', $this->register($this->alex, 1)['status']);
+        // Seuls les validés occupent une place
+        $this->assertSame(0, (int) array_column(getCourses($this->db), 'nb_inscrits', 'id_cours')[1]);
     }
 
     public function testDejaInscrit(): void
@@ -112,23 +111,18 @@ class ReservationTest extends TestCase
         $this->register($this->alex, 1);
 
         $this->assertSame('already_registered', $this->register($this->alex, 1)['status']);
-        $this->assertSame(1, $this->places(1));
+        $this->validate($this->alex, 1);
+        $this->assertSame('already_registered', $this->register($this->alex, 1)['status']);
     }
 
-    public function testCoursIntrouvable(): void
+    public function testCoursIntrouvableOuCommence(): void
     {
         $this->assertSame('not_found', $this->register($this->alex, 999)['status']);
-    }
-
-    public function testCoursDejaCommence(): void
-    {
         $this->assertSame('started', $this->register($this->alex, 4)['status']);
         $this->assertSame('started', $this->register($this->alex, 1, '2026-11-10 17:00:00+00')['status']);
     }
 
-    // ---------- Chevauchement ----------
-
-    public function testDeuxCoursQuiSeChevauchent(): void
+    public function testChevauchementRefuse(): void
     {
         $this->register($this->alex, 1);
 
@@ -139,144 +133,230 @@ class ReservationTest extends TestCase
         $this->assertFalse($this->statusOf($this->alex, 2));
     }
 
+    public function testChevauchementAussiAvecLaListeDAttente(): void
+    {
+        $this->validatedMember('Sam');
+        $this->validatedMember('Léa');
+        $this->register($this->alex, 1); // complet : liste d'attente
+
+        $this->assertSame('overlap', $this->register($this->alex, 2)['status']);
+    }
+
     public function testCoursQuiSeSuiventAcceptes(): void
     {
         $this->register($this->alex, 1);
 
-        $this->assertSame('registered', $this->register($this->alex, 3)['status']);
-    }
-
-    public function testCoursQuitteNeBloquePlusLeCreneau(): void
-    {
-        $this->register($this->alex, 1);
-        $this->unregister($this->alex, 1);
-
-        $this->assertSame('registered', $this->register($this->alex, 2)['status']);
+        $this->assertSame('requested', $this->register($this->alex, 3)['status']);
     }
 
     public function testChevauchementSeulementPourSesPropresCours(): void
     {
-        $this->register($this->adherent(), 1);
+        $this->register($this->adherent('Sam'), 1);
 
-        $this->assertSame('registered', $this->register($this->alex, 2)['status']);
+        $this->assertSame('requested', $this->register($this->alex, 2)['status']);
     }
 
-    // ---------- Désinscription ----------
-
-    public function testDesinscriptionLibereLaPlaceEtCompteEnAbsence(): void
+    public function testDemandeRefuseeNePeutPasEtreRenvoyee(): void
     {
         $this->register($this->alex, 1);
+        $this->db->exec("UPDATE reservations SET statut = 'rejetee' WHERE id_adherent = {$this->alex}");
 
-        $this->assertSame('unregistered', $this->unregister($this->alex, 1));
-        // Le trigger de la base compte ce statut dans adherents.nb_absences
-        $this->assertSame('absent', $this->statusOf($this->alex, 1));
-        $this->assertSame(0, $this->places(1));
+        $this->assertSame('refused', $this->register($this->alex, 1)['status']);
     }
-
-    public function testPlaceLibereeReprisParUnAutre(): void
-    {
-        $other = $this->adherent();
-        $this->register($this->adherent(), 1);
-        $this->register($other, 1);
-        $this->assertSame('full', $this->register($this->alex, 1)['status']);
-
-        $this->unregister($other, 1);
-
-        $this->assertSame('registered', $this->register($this->alex, 1)['status']);
-    }
-
-    public function testDesinscriptionSansInscription(): void
-    {
-        $this->assertSame('not_registered', $this->unregister($this->alex, 1));
-        $this->assertSame('not_registered', $this->unregister($this->alex, 999));
-    }
-
-    public function testDoubleDesinscription(): void
-    {
-        $this->register($this->alex, 1);
-        $this->unregister($this->alex, 1);
-
-        $this->assertSame('not_registered', $this->unregister($this->alex, 1));
-    }
-
-    public function testDesinscriptionImpossibleUneFoisLeCoursCommence(): void
-    {
-        $this->register($this->alex, 1);
-
-        $this->assertSame('started', $this->unregister($this->alex, 1, '2026-11-10 17:00:00+00'));
-        $this->assertSame('confirmee', $this->statusOf($this->alex, 1));
-    }
-
-    public function testDesinscriptionPossibleJusquAuDebut(): void
-    {
-        $this->register($this->alex, 1);
-
-        $this->assertSame('unregistered', $this->unregister($this->alex, 1, '2026-11-10 16:59:00+00'));
-    }
-
-    // ---------- Réinscription ----------
 
     public function testReinscriptionApresDesinscription(): void
     {
         $this->register($this->alex, 1);
         $this->unregister($this->alex, 1);
 
-        $this->assertSame('registered', $this->register($this->alex, 1)['status']);
-        $this->assertSame('confirmee', $this->statusOf($this->alex, 1));
-        $this->assertSame(1, $this->places(1));
+        $this->assertSame('requested', $this->register($this->alex, 1)['status']);
+        $this->assertSame('en_attente', $this->statusOf($this->alex, 1));
+        // Le motif de l'ancienne désinscription est effacé
+        $this->assertNull($this->db->query("SELECT motif FROM reservations WHERE id_adherent = {$this->alex}")->fetchColumn());
+        $this->assertSame(1, (int) $this->db->query('SELECT COUNT(*) FROM reservations')->fetchColumn());
     }
 
-    public function testReinscriptionApresRetraitParLeCoach(): void
+    // ---------- Liste d'attente (US3) ----------
+
+    public function testSeanceCompletePasseEnListeDAttente(): void
+    {
+        $this->validatedMember('Sam');
+        $this->validatedMember('Léa');
+
+        $result = $this->register($this->alex, 1);
+
+        $this->assertSame('waitlisted', $result['status']);
+        $this->assertSame(1, $result['position']);
+        $this->assertSame('liste_attente', $this->statusOf($this->alex, 1));
+    }
+
+    public function testPositionsDansLaListeDAttente(): void
+    {
+        $this->validatedMember('Sam');
+        $this->validatedMember('Léa');
+        $first  = $this->adherent('Premier');
+        $second = $this->adherent('Second');
+        $this->register($first, 1);
+        $this->register($second, 1);
+
+        $this->assertSame(1, waitingListPosition($this->db, 1, $first));
+        $this->assertSame(2, waitingListPosition($this->db, 1, $second));
+        $this->assertNull(waitingListPosition($this->db, 1, $this->alex));
+    }
+
+    public function testQuitterLaListeDAttente(): void
+    {
+        $this->validatedMember('Sam');
+        $this->validatedMember('Léa');
+        $first = $this->adherent('Premier');
+        $this->register($first, 1);
+        $this->register($this->alex, 1);
+
+        $this->assertTrue(leaveWaitingList($this->db, $first, 1));
+        $this->assertFalse(leaveWaitingList($this->db, $first, 1));
+
+        $this->assertSame('annulee', $this->statusOf($first, 1));
+        // Alex remonte en première position
+        $this->assertSame(1, waitingListPosition($this->db, 1, $this->alex));
+    }
+
+    public function testPlaceLibereeProposeLaPremierePersonneAuCoach(): void
+    {
+        $sam = $this->validatedMember('Sam');
+        $this->validatedMember('Léa');
+        $first  = $this->adherent('Premier');
+        $second = $this->adherent('Second');
+        $this->register($first, 1);
+        $this->register($second, 1);
+
+        $result = $this->unregister($sam, 1);
+
+        $this->assertSame('Premier', $result['promoted']['prenom']);
+        $this->assertSame('en_attente', $this->statusOf($first, 1));
+        $this->assertSame('liste_attente', $this->statusOf($second, 1));
+        $this->assertSame(1, waitingListPosition($this->db, 1, $second));
+    }
+
+    public function testDesinscriptionDUneDemandeNeLibereAucunePlace(): void
+    {
+        $this->validatedMember('Sam');
+        $pending = $this->adherent('Demande');
+        $this->register($pending, 1);
+        $this->validatedMember('Léa'); // complet
+        $this->register($this->alex, 1); // liste d'attente
+
+        $result = $this->unregister($pending, 1);
+
+        $this->assertFalse($result['was_confirmed']);
+        $this->assertNull($result['promoted']);
+        $this->assertSame('liste_attente', $this->statusOf($this->alex, 1));
+    }
+
+    public function testPasDePromotionSansListeDAttente(): void
+    {
+        $this->assertNull(promoteFromWaitingList($this->db, 1));
+        $this->assertNull(promoteFromWaitingList($this->db, 999));
+    }
+
+    // ---------- Désinscription avec motif (US7) ----------
+
+    public function testDesinscriptionAvecMotif(): void
     {
         $this->register($this->alex, 1);
-        $this->db->exec("UPDATE reservations SET statut = 'rejetee' WHERE id_cours = 1 AND id_adherent = {$this->alex}");
+        $this->validate($this->alex, 1);
 
-        $this->assertSame('registered', $this->register($this->alex, 1)['status']);
-        $this->assertSame('confirmee', $this->statusOf($this->alex, 1));
+        $result = $this->unregister($this->alex, 1, '  Raison de santé ');
+
+        $this->assertSame('unregistered', $result['status']);
+        $this->assertTrue($result['was_confirmed']);
+        $this->assertSame('Martin', explode(' ', $result['course']['nom_coach'])[1]);
+
+        $row = $this->db->query("SELECT statut, motif, date_statut FROM reservations WHERE id_adherent = {$this->alex}")->fetch();
+        $this->assertSame('absent', $row['statut']);
+        $this->assertSame('Raison de santé', $row['motif']);
+        $this->assertNotNull($row['date_statut']);
     }
 
-    public function testReinscriptionImpossibleSiCompletEntreTemps(): void
+    public function testDesinscriptionEnregistreeDansLHistorique(): void
     {
         $this->register($this->alex, 1);
-        $this->unregister($this->alex, 1);
-        $this->register($this->adherent(), 1);
-        $this->register($this->adherent(), 1);
 
-        $this->assertSame('full', $this->register($this->alex, 1)['status']);
-        $this->assertSame('absent', $this->statusOf($this->alex, 1));
+        $this->unregister($this->alex, 1, 'Contrainte professionnelle');
+
+        $event = $this->db->query("SELECT * FROM historique_seances")->fetch();
+        $this->assertSame('desinscription', $event['type']);
+        $this->assertSame('Contrainte professionnelle', $event['motif']);
+        $this->assertSame('HIIT 18h', $event['titre_cours']);
+        $this->assertSame('Marc Martin', $event['nom_coach']);
+        $this->assertSame('Studio 1', $event['nom_salle']);
+        $this->assertSame($this->alex, (int) $event['id_adherent']);
     }
 
-    // ---------- Cours affichés ----------
+    public function testMotifObligatoire(): void
+    {
+        $this->register($this->alex, 1);
 
-    public function testCoursDeLAdherent(): void
+        $this->assertSame('reason_required', $this->unregister($this->alex, 1, "  \n ")['status']);
+        $this->assertSame('en_attente', $this->statusOf($this->alex, 1));
+    }
+
+    public function testDesinscriptionSansInscription(): void
+    {
+        $this->assertSame('not_registered', $this->unregister($this->alex, 1)['status']);
+        $this->assertSame('not_registered', $this->unregister($this->alex, 999)['status']);
+    }
+
+    public function testDoubleDesinscriptionNeCompteQuUneFois(): void
+    {
+        $this->register($this->alex, 1);
+
+        $this->assertSame('unregistered', $this->unregister($this->alex, 1)['status']);
+        $this->assertSame('not_registered', $this->unregister($this->alex, 1)['status']);
+        $this->assertSame(1, (int) $this->db->query('SELECT COUNT(*) FROM historique_seances')->fetchColumn());
+    }
+
+    public function testListeDAttenteNeSeDesinscritPasAvecUnMotif(): void
+    {
+        $this->validatedMember('Sam');
+        $this->validatedMember('Léa');
+        $this->register($this->alex, 1);
+
+        // Sur liste d'attente, on quitte la liste (leaveWaitingList) : pas de désinscription
+        $this->assertSame('not_registered', $this->unregister($this->alex, 1)['status']);
+    }
+
+    public function testDesinscriptionImpossibleUneFoisLeCoursCommence(): void
+    {
+        $this->register($this->alex, 1);
+
+        $this->assertSame('started', $this->unregister($this->alex, 1, 'Empêchement', '2026-11-10 17:00:00+00')['status']);
+        $this->assertSame('unregistered', $this->unregister($this->alex, 1, 'Empêchement', '2026-11-10 16:59:00+00')['status']);
+    }
+
+    // ---------- Statuts affichés ----------
+
+    public function testStatutsDeLAdherentParCours(): void
     {
         $this->register($this->alex, 1);
         $this->register($this->alex, 3);
-        $this->unregister($this->alex, 3);
+        $this->validate($this->alex, 3);
 
-        $this->assertSame([1], getRegisteredCourseIds($this->db, $this->alex, [1, 2, 3]));
-        $this->assertSame([], getRegisteredCourseIds($this->db, $this->alex, [2]));
-        $this->assertSame([], getRegisteredCourseIds($this->db, $this->alex, []));
+        $this->assertSame([1 => 'en_attente', 3 => 'confirmee'], getBookingStatuses($this->db, $this->alex, [1, 2, 3]));
+        $this->assertSame([], getBookingStatuses($this->db, $this->alex, []));
     }
 
     public function testBoutonSelonLEtatDuCours(): void
     {
         $course = ['termine' => false, 'complet' => false];
 
-        $this->assertSame('disponible', courseRegistrationState($course, false));
-        $this->assertSame('complet', courseRegistrationState(['complet' => true] + $course, false));
-        $this->assertSame('inscrit', courseRegistrationState($course, true));
-        // Déjà inscrit à un cours complet : il doit pouvoir se désinscrire
-        $this->assertSame('inscrit', courseRegistrationState(['complet' => true] + $course, true));
-        $this->assertNull(courseRegistrationState(['termine' => true] + $course, true));
-        $this->assertNull(courseRegistrationState(['termine' => true] + $course, false));
-    }
-
-    // ---------- Filtres ----------
-
-    public function testFiltresDuPlanningValides(): void
-    {
-        $this->assertSame(['sport' => 3, 'coach' => 2], parsePlanningFilters(['sport' => '3', 'coach' => '2', 'autre' => '9']));
-        $this->assertSame([], parsePlanningFilters(['sport' => 'abc', 'coach' => '0']));
+        $this->assertSame('disponible', courseRegistrationState($course, null));
+        $this->assertSame('liste_possible', courseRegistrationState(['complet' => true] + $course, null));
+        $this->assertSame('disponible', courseRegistrationState($course, 'absent'));
+        $this->assertSame('disponible', courseRegistrationState($course, 'annulee'));
+        foreach (['en_attente', 'confirmee', 'liste_attente', 'rejetee'] as $status) {
+            $this->assertSame($status, courseRegistrationState(['complet' => true] + $course, $status));
+        }
+        $this->assertNull(courseRegistrationState(['termine' => true] + $course, 'confirmee'));
+        $this->assertNull(courseRegistrationState(['termine' => true] + $course, null));
     }
 }

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/coach_courses.php';
+require_once __DIR__ . '/includes/course_slots.php';
 require_once __DIR__ . '/includes/form.php';
 require_once __DIR__ . '/includes/mailer.php';
 require_once __DIR__ . '/includes/sports.php';
@@ -49,6 +50,16 @@ if (!$unavailable && !$managesAllCourses && $coachId === null) {
     header('Location: planning.php');
     exit;
 }
+// La création d'une séance se fait salle par salle, créneau par créneau, et seulement par un administrateur (US1)
+if (!$unavailable && !$courseId) {
+    if ($managesAllCourses) {
+        header('Location: creer-seance.php');
+        exit;
+    }
+    setFlash('La création des séances est réservée aux administrateurs.');
+    header('Location: planning.php');
+    exit;
+}
 if (!$unavailable && $courseId && !$course) {
     setFlash('Cette séance est introuvable, ou elle appartient à un autre coach.');
     header('Location: planning.php');
@@ -65,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$unavailable) {
     if (!isValidCsrf($_POST['csrf_token'] ?? null)) {
         $errors['global'] = 'La session a expiré, recharge la page et réessaie.';
     } elseif ($action === 'annuler' && $course) {
-        $cancellation = validateCancellationReason((string) ($_POST['motif'] ?? ''));
+        $cancellation = reasonFromPost($_POST, 'motif', CANCELLATION_REASONS);
         $cancelReason = $cancellation['motif'];
 
         if ($cancellation['error'] !== null) {
@@ -73,10 +84,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$unavailable) {
         } else {
             try {
                 $start = (new DateTimeImmutable($course['date_debut']))->setTimezone(new DateTimeZone(PLANNING_TIMEZONE));
-                $participants = cancelCourse($db, $courseId, (int) $course['id_coach']);
+                $participants = cancelCourse($db, $courseId, (int) $course['id_coach'], $cancelReason);
 
                 if ($participants === null) {
-                    setFlash('Cette séance a déjà été annulée.');
+                    setFlash('Cette séance a déjà été annulée ou a déjà commencé.');
                 } else {
                     // Mails envoyés après la suppression : un échec d'envoi n'empêche pas l'annulation
                     $when   = formatLongDate($start) . ' à ' . $start->format('H:i');
@@ -106,7 +117,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$unavailable) {
             }
         }
     } else {
-        [$data, $errors] = validateCourse($_POST, $rooms, array_map('intval', array_column($sports, 'id_sport')));
+        // Capacité calculée à partir de la salle : capacité ÷ 5, au moins 1 (non modifiable)
+        $input        = $_POST;
+        $roomCapacity = array_column($rooms, 'capacite', 'id_salle')[(int) ($_POST['id_salle'] ?? 0)] ?? null;
+        $input['nb_places_max'] = $roomCapacity === null ? '' : (string) sessionCapacity((int) $roomCapacity);
+
+        [$data, $errors] = validateCourse($input, $rooms, array_map('intval', array_column($sports, 'id_sport')));
 
         // Une séance garde son coach. À la création, un administrateur le choisit
         $ownerId = $course ? (int) $course['id_coach'] : $coachId;
@@ -208,7 +224,7 @@ require __DIR__ . '/includes/header.php';
                             <option value="">Choisir une salle</option>
                             <?php foreach ($rooms as $room): ?>
                                 <option value="<?= (int) $room['id_salle'] ?>" <?= (string) $room['id_salle'] === ($data['id_salle'] ?? '') ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($room['nom_salle']) ?> (<?= (int) $room['capacite'] ?> places)
+                                    <?= htmlspecialchars($room['nom_salle']) ?> (séance de <?= sessionCapacity((int) $room['capacite']) ?> places)
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -230,8 +246,8 @@ require __DIR__ . '/includes/header.php';
 
                     <div class="field field-full">
                         <label for="nb_places_max">Nombre de places</label>
-                        <input type="number" id="nb_places_max" name="nb_places_max" value="<?= old($data, 'nb_places_max') ?>" min="1" required>
-                        <?= fieldError($errors, 'nb_places_max') ?>
+                        <input type="text" id="nb_places_max" value="<?= old($data, 'nb_places_max') ?>" readonly>
+                        <p class="muted-text field-hint">Calculé à partir de la salle : sa capacité ÷ 5, au moins 1.</p>
                     </div>
 
                     <div class="field field-full">
@@ -244,21 +260,21 @@ require __DIR__ . '/includes/header.php';
                 <button type="submit" class="btn btn-lg btn-block"><?= $course ? 'Enregistrer les modifications' : 'Créer la séance' ?></button>
             </form>
 
-            <?php if ($course): ?>
-                <?php $registered = (int) $course['nb_inscrits']; ?>
+            <?php if ($course && new DateTimeImmutable($course['date_debut']) > new DateTimeImmutable()): ?>
+                <?php
+                $statement = $db->prepare("SELECT COUNT(*) FROM reservations WHERE id_cours = :id AND statut IN ('en_attente', 'confirmee', 'liste_attente')");
+                $statement->execute(['id' => $courseId]);
+                $registered = (int) $statement->fetchColumn();
+                ?>
                 <form id="annulation" class="form-card" method="post" action="<?= htmlspecialchars($formAction) ?>" novalidate
                       onsubmit="return confirm('Annuler cette séance ?<?= $registered > 0 ? ' Ses ' . $registered . ' inscrit(s) recevront un mail avec le motif.' : '' ?>');">
                     <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                     <input type="hidden" name="action" value="annuler">
                     <h2>Annuler la séance</h2>
                     <p class="muted-text">
-                        <?= $registered > 0 ? 'Cette séance a ' . $registered . ' inscrit(s) : leurs réservations seront annulées et chacun recevra un mail avec le motif.' : 'Personne n\'est inscrit à cette séance.' ?>
+                        <?= $registered > 0 ? 'Cette séance a ' . $registered . ' inscrit(s) (validés, en attente ou en liste d\'attente) : chacun recevra un mail avec le motif. La salle et le créneau redeviendront libres.' : 'Personne n\'est inscrit à cette séance. La salle et le créneau redeviendront libres.' ?>
                     </p>
-                    <div class="field field-full">
-                        <label for="motif">Motif de l'annulation <span class="optional">(envoyé par mail aux inscrits)</span></label>
-                        <textarea id="motif" name="motif" rows="3" maxlength="<?= COURSE_CANCEL_REASON_MAX ?>" required><?= htmlspecialchars($cancelReason ?? '') ?></textarea>
-                        <?= fieldError($errors, 'motif') ?>
-                    </div>
+                    <?= reasonFields('motif', 'Motif de l\'annulation (envoyé par mail aux inscrits)', CANCELLATION_REASONS, $errors['motif'] ?? null) ?>
                     <button type="submit" class="btn btn-danger">Annuler la séance</button>
                 </form>
             <?php endif; ?>

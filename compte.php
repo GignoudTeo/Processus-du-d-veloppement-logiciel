@@ -87,6 +87,10 @@ require __DIR__ . '/includes/header.php';
         <p class="tag">Espace adhérent</p>
         <h1>Mon <span class="highlight">compte</span></h1>
 
+        <?php if ($profile): ?>
+            <?php $accountTab = 'compte'; require __DIR__ . '/includes/account_tabs.php'; ?>
+        <?php endif; ?>
+
         <?php if (!$profile): ?>
             <p class="lead">La gestion du compte est réservée aux adhérents.</p>
         <?php else: ?>

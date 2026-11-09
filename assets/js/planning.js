@@ -109,12 +109,13 @@
         dialog.style.setProperty('--sport-color', course.couleur);
         dialog.querySelector('.course-dialog-bar div').style.width = course.remplissage + '%';
 
-        // Lien présent seulement pour un coach (sur ses séances) ou un administrateur (sur toutes)
-        const editLink = dialog.querySelector('.course-dialog-edit');
-        if (editLink) {
-            editLink.hidden = !course.lien_modifier;
-            editLink.href = course.lien_modifier || '#';
-        }
+        // Liens présents seulement pour un coach (sur ses séances) ou un administrateur (sur toutes)
+        [['.course-dialog-edit', 'lien_modifier'], ['.course-dialog-validate', 'lien_valider']].forEach(function (pair) {
+            const link = dialog.querySelector(pair[0]);
+            if (!link) return;
+            link.hidden = !course[pair[1]];
+            link.href = course[pair[1]] || '#';
+        });
 
         showParticipants(course);
         showBooking(course);
@@ -122,7 +123,8 @@
         dialog.showModal();
     }
 
-    // Bouton d'inscription : présent seulement pour un compte avec un profil adhérent, masqué si le cours a commencé
+    // Inscription : présente seulement pour un compte avec un profil adhérent, masquée si le cours a commencé.
+    // États : disponible, liste_possible (complet), en_attente, confirmee, liste_attente, rejetee
     function showBooking(course) {
         const form = dialog.querySelector('.course-dialog-booking');
         if (!form) return;
@@ -130,16 +132,34 @@
         form.hidden = !course.inscription;
         if (!course.inscription) return;
 
-        const registered = course.inscription === 'inscrit';
-        const button = form.querySelector('button');
-        const labels = { inscrit: 'Se désinscrire', complet: 'Complet', disponible: "S'inscrire" };
+        const states = {
+            disponible: { info: '', button: "Demander à m'inscrire", action: 'inscrire' },
+            liste_possible: { info: "Cette séance est complète : tu peux rejoindre la liste d'attente.", button: "Rejoindre la liste d'attente", action: 'inscrire' },
+            en_attente: { info: 'Ta demande est en attente de validation par le coach.', button: 'Se désinscrire', action: 'desinscrire' },
+            confirmee: { info: 'Ton inscription est validée : ta place est réservée.', button: 'Se désinscrire', action: 'desinscrire' },
+            liste_attente: { info: "Tu es sur la liste d'attente (position " + course.position + ').', button: "Quitter la liste d'attente", action: 'quitter_liste' },
+            rejetee: { info: "Le coach n'a pas retenu ta demande pour cette séance.", button: null, action: null },
+        };
+        const state = states[course.inscription];
+        const button = form.querySelector('button[type="submit"]');
+        const info = form.querySelector('.course-dialog-booked');
+        const unregister = form.querySelector('.course-dialog-unregister');
+        const reasonSelect = unregister.querySelector('select');
 
         form.elements.id_cours.value = course.id_cours;
-        form.elements.action.value = registered ? 'desinscrire' : 'inscrire';
-        form.querySelector('.course-dialog-booked').hidden = !registered;
-        button.textContent = labels[course.inscription];
-        button.disabled = course.inscription === 'complet';
-        button.classList.toggle('btn-danger', registered);
+        form.elements.action.value = state.action || '';
+        info.textContent = state.info;
+        info.hidden = !state.info;
+        button.hidden = !state.button;
+        button.textContent = state.button || '';
+        button.classList.toggle('btn-danger', state.action === 'desinscrire' || state.action === 'quitter_liste');
+
+        // Le motif n'est demandé (et obligatoire) que pour une désinscription
+        const unregistering = state.action === 'desinscrire';
+        unregister.hidden = !unregistering;
+        reasonSelect.disabled = !unregistering;
+        reasonSelect.value = '';
+        unregister.querySelector('textarea').hidden = true;
     }
 
     // Liste des inscrits : reçue seulement pour une séance que la personne connectée gère

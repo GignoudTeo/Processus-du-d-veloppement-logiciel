@@ -96,6 +96,35 @@ class CoachValidationTest extends TestCase
         $this->assertArrayHasKey('nb_absences', $request);
     }
 
+    public function testLeCoachVoitLesDerniersMotifsDeRefusEtDeDesinscription(): void
+    {
+        // Zoé, en liste d'attente, a déjà été refusée ailleurs : le coach voit le motif dans son profil
+        $id         = $this->booking(1, 'Zoé', 'liste_attente');
+        $adherentId = (int) $this->db->query("SELECT id_adherent FROM reservations WHERE id_reservation = $id")->fetchColumn();
+        $course     = getCourseForHistory($this->db, 2);
+        $adherent   = ['id_adherent' => $adherentId, 'nom_adherent' => 'Zoé'];
+        logSessionEvent($this->db, 'refus', 'Profil incomplet', $course, $adherent);
+        logSessionEvent($this->db, 'desinscription', 'Raison de santé', $course, $adherent);
+        logSessionEvent($this->db, 'annulation', 'Salle indisponible', $course, $adherent);  // pas un motif de l'adhérent
+
+        $member = getCoachBookingOverview($this->db, 1, $this->now())[0]['liste_attente'][0];
+
+        $this->assertEqualsCanonicalizing(['Profil incomplet', 'Raison de santé'], array_column($member['historique_motifs'], 'motif'));
+        $this->assertSame('Yoga', $member['historique_motifs'][0]['titre_cours']);
+    }
+
+    public function testHistoriqueDesMotifsLimite(): void
+    {
+        $id         = $this->booking(1, 'Alex');
+        $adherentId = (int) $this->db->query("SELECT id_adherent FROM reservations WHERE id_reservation = $id")->fetchColumn();
+        for ($i = 1; $i <= 7; $i++) {
+            logSessionEvent($this->db, 'refus', 'Motif ' . $i, getCourseForHistory($this->db, 2), ['id_adherent' => $adherentId, 'nom_adherent' => 'Alex']);
+        }
+
+        $this->assertCount(MEMBER_REASON_HISTORY_MAX, getMembersReasonHistory($this->db, [$adherentId])[$adherentId]);
+        $this->assertSame([], getMembersReasonHistory($this->db, []));
+    }
+
     public function testNombreDeDemandesEnAttente(): void
     {
         $this->booking(1, 'Alex');

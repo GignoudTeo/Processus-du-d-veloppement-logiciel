@@ -75,9 +75,13 @@ function getCoachBookingOverview(PDO $db, ?int $coachId, DateTimeImmutable $now,
     );
     $statement->execute($ids);
 
+    $rows    = $statement->fetchAll(PDO::FETCH_ASSOC);
+    $reasons = getMembersReasonHistory($db, array_column($rows, 'id_adherent'));
+
     $byCourse = [];
-    foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $row['age'] = memberAge($row['date_naissance'], $now);
+    foreach ($rows as $row) {
+        $row['age']              = memberAge($row['date_naissance'], $now);
+        $row['historique_motifs'] = $reasons[(int) $row['id_adherent']] ?? [];
         $byCourse[(int) $row['id_cours']][$row['statut']][] = $row;
     }
 
@@ -108,6 +112,39 @@ function countCoachPendingRequests(PDO $db, ?int $coachId, DateTimeImmutable $no
     $statement->execute($params);
 
     return (int) $statement->fetchColumn();
+}
+
+const MEMBER_REASON_HISTORY_MAX = 5;
+
+// Derniers refus (ou retraits) et désinscriptions de chaque adhérent, avec leur motif, du plus récent au plus ancien.
+// Sert au coach pour juger une demande (y compris celle d'une personne qui sort de la liste d'attente).
+// Renvoie [id_adherent => [['type', 'motif', 'titre_cours', 'date_cours', 'date_evenement'], ...]] (au plus $max par adhérent)
+function getMembersReasonHistory(PDO $db, array $adherentIds, int $max = MEMBER_REASON_HISTORY_MAX): array
+{
+    $adherentIds = array_values(array_unique(array_map('intval', $adherentIds)));
+    if ($adherentIds === []) {
+        return [];
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($adherentIds), '?'));
+    $statement    = $db->prepare(
+        "SELECT id_adherent, type, motif, titre_cours, date_cours, date_evenement
+         FROM historique_seances
+         WHERE id_adherent IN ($placeholders) AND type IN ('refus', 'desinscription')
+         ORDER BY date_evenement DESC, id_evenement DESC"
+    );
+    $statement->execute($adherentIds);
+
+    $history = [];
+    foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $adherentId = (int) $row['id_adherent'];
+        if (count($history[$adherentId] ?? []) < $max) {
+            unset($row['id_adherent']);
+            $history[$adherentId][] = $row;
+        }
+    }
+
+    return $history;
 }
 
 // Âge en années à partir de la date de naissance (AAAA-MM-JJ), ou null

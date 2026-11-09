@@ -1594,6 +1594,19 @@ summary.course-dialog-remove::-webkit-details-marker { display: none; }
 .member-date { margin: 0; font-size: 0.8rem; }
 .refuse-all { margin-top: 16px; }
 
+/* Derniers motifs de refus / désinscription dans le profil de l'adhérent */
+.member-reasons { margin: 4px 0 8px; font-size: 0.85rem; }
+.member-reasons summary { cursor: pointer; color: var(--color-yellow); }
+.member-reasons ul { margin: 8px 0 0; padding: 0; list-style: none; }
+.member-reasons li + li { margin-top: 6px; }
+.member-reasons .course-badge { margin-right: 6px; }
+
+/* Nom cliquable dans les listes Validés / Liste d'attente : déplie le profil */
+.member-profile-toggle { display: inline-block; vertical-align: middle; }
+.member-profile-toggle[open] { display: block; }
+.member-profile-toggle > summary { cursor: pointer; text-decoration: underline dotted; }
+.member-profile-toggle[open] > .member-profile { margin: 8px 0 10px; padding: 10px 12px; border-left: 3px solid var(--color-border); }
+
 .validation-lists {
     display: grid;
     grid-template-columns: 1fr 1fr;

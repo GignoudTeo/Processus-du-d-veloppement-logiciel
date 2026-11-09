@@ -160,21 +160,7 @@ require __DIR__ . '/includes/header.php';
                 <?php foreach ($course['demandes'] as $request): ?>
                     <?php $rid = (int) $request['id_reservation']; ?>
                     <div class="validation-request">
-                        <div class="member-profile">
-                            <p class="member-name"><?= htmlspecialchars($request['prenom'] . ' ' . $request['nom']) ?></p>
-                            <ul class="member-facts">
-                                <?php if ($request['age'] !== null): ?><li><?= $request['age'] ?> ans</li><?php endif; ?>
-                                <?php if ($request['poids']): ?><li><?= rtrim(rtrim(number_format((float) $request['poids'], 1, ',', ''), '0'), ',') ?> kg</li><?php endif; ?>
-                                <?php if ($request['taille']): ?><li><?= (int) $request['taille'] ?> cm</li><?php endif; ?>
-                                <li>Membre depuis le <?= $formatDate($request['date_creation'])->format('d/m/Y') ?></li>
-                            </ul>
-                            <ul class="member-facts is-stats">
-                                <li><strong><?= (int) $request['nb_reservations'] ?></strong> réservation(s)</li>
-                                <li><strong><?= (int) $request['nb_reservations_rejetees'] ?></strong> refus</li>
-                                <li><strong><?= (int) $request['nb_absences'] ?></strong> désinscription(s)</li>
-                            </ul>
-                            <p class="muted-text member-date">Demande du <?= $formatDate($request['date_reservation'])->format('d/m/Y à H:i') ?></p>
-                        </div>
+                        <?php $member = $request; $memberDateLabel = 'Demande du'; require __DIR__ . '/includes/member_profile.php'; ?>
 
                         <div class="request-actions">
                             <form method="post" action="validations.php<?= $courseId ? '?cours=' . $courseId : '' ?>">
@@ -225,7 +211,10 @@ require __DIR__ . '/includes/header.php';
                                 <?php foreach ($course['valides'] as $member): ?>
                                     <?php $rid = (int) $member['id_reservation']; $memberName = $member['prenom'] . ' ' . $member['nom']; ?>
                                     <li>
-                                        <?= htmlspecialchars($memberName) ?>
+                                        <details class="member-profile-toggle">
+                                            <summary><?= htmlspecialchars($memberName) ?></summary>
+                                            <?php $memberDateLabel = 'Inscription du'; require __DIR__ . '/includes/member_profile.php'; ?>
+                                        </details>
                                         <?php if ($canRemove): ?>
                                             <details class="request-refuse validation-remove" <?= isset($errors['retrait-' . $rid]) ? 'open' : '' ?>>
                                                 <summary class="btn btn-danger btn-small">Retirer</summary>
@@ -252,7 +241,12 @@ require __DIR__ . '/includes/header.php';
                         <?php else: ?>
                             <ol class="validation-names">
                                 <?php foreach ($course['liste_attente'] as $member): ?>
-                                    <li><?= htmlspecialchars($member['prenom'] . ' ' . $member['nom']) ?></li>
+                                    <li>
+                                        <details class="member-profile-toggle">
+                                            <summary><?= htmlspecialchars($member['prenom'] . ' ' . $member['nom']) ?></summary>
+                                            <?php $memberDateLabel = 'Sur la liste depuis le'; require __DIR__ . '/includes/member_profile.php'; ?>
+                                        </details>
+                                    </li>
                                 <?php endforeach; ?>
                             </ol>
                         <?php endif; ?>

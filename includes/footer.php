@@ -13,3 +13,14 @@
 <?php endif; ?>
 </body>
 </html>
+<?php
+// Rappel 2 jours avant la séance aux coachs (US6), sans tâche planifiée : vérifiés au premier chargement de page de chaque heure.
+// La page est d'abord envoyée au navigateur, la vérification (et l'envoi des mails) se fait ensuite
+require_once __DIR__ . '/reminders.php';
+ignore_user_abort(true);  // la vérification continue même si la personne change de page entre-temps
+while (ob_get_level() > 0) {
+    ob_end_flush();
+}
+flush();
+runRemindersIfDue(new DateTimeImmutable('now', new DateTimeZone(PLANNING_TIMEZONE)));
+?>

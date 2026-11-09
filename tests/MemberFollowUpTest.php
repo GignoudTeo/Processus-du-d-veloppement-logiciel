@@ -3,7 +3,7 @@
 use PHPUnit\Framework\TestCase;
 
 // Statistiques admin (US8), passages (US9), historique adhérent (US10), progression (US11),
-// profil coach (US12) et rappel J-3 (US6)
+// profil coach (US12) et rappel 2 jours avant (US6)
 class MemberFollowUpTest extends TestCase
 {
     private const NOW = '2026-11-09 12:00:00+00';
@@ -26,7 +26,7 @@ class MemberFollowUpTest extends TestCase
             (1, 'HIIT lundi', 1, 1, 1, '2026-11-02 17:00:00+00', '2026-11-02 18:00:00+00', 5),
             (2, 'HIIT jeudi', 1, 1, 1, '2026-11-12 17:00:00+00', '2026-11-12 18:00:00+00', 5),
             (3, 'Yoga', 1, 2, 1, '2026-10-20 17:00:00+00', '2026-10-20 18:00:00+00', 5),
-            (4, 'HIIT J-3', 1, 1, 1, '2026-11-12 00:00:00+00', '2026-11-12 01:00:00+00', 5)");
+            (4, 'HIIT J-2', 1, 1, 1, '2026-11-11 00:00:00+00', '2026-11-11 01:00:00+00', 5)");
 
         $this->alex = $this->member('Alex');
         $this->sam  = $this->member('Sam');
@@ -310,11 +310,11 @@ class MemberFollowUpTest extends TestCase
         $this->assertSame([], getCoachIncidents($this->db, 2, parsePeriod([])));
     }
 
-    // ---------- Rappel J-3 (US6) ----------
+    // ---------- Rappel 2 jours avant (US6) ----------
 
     public function testRappelSeulementAvecDesDemandesEnAttente(): void
     {
-        // Séance 4 : dans 2 jours et 12 h
+        // Séance 4 : dans 1 jour et 12 h
         $this->assertSame([], getCoursesNeedingReminder($this->db, $this->now()));
 
         $this->book($this->alex, 4, 'en_attente');
@@ -322,7 +322,7 @@ class MemberFollowUpTest extends TestCase
 
         $courses = getCoursesNeedingReminder($this->db, $this->now());
         $this->assertCount(1, $courses);
-        $this->assertSame('HIIT J-3', $courses[0]['titre']);
+        $this->assertSame('HIIT J-2', $courses[0]['titre']);
         $this->assertSame(1, $courses[0]['nb_demandes']);
         $this->assertSame('marc@example.com', $courses[0]['coach_email']);
     }
@@ -335,14 +335,23 @@ class MemberFollowUpTest extends TestCase
         $this->assertSame([], getCoursesNeedingReminder($this->db, $this->now()));
     }
 
-    public function testRappelHorsFenetre(): void
+    public function testRappelSeulement2JoursAvant(): void
     {
-        // Séance 2 : dans 3 jours et 5 h, hors fenêtre de 2 à 3 jours
+        // Séance 2 : jeudi 17:00 UTC, dans 3 jours et 5 h : trop tôt pour le rappel
         $this->book($this->alex, 2, 'en_attente');
 
         $this->assertSame([], getCoursesNeedingReminder($this->db, $this->now()));
-        // Le lendemain, elle entre dans la fenêtre
-        $this->assertCount(1, getCoursesNeedingReminder($this->db, $this->now()->modify('+1 day')));
+        // Pile 2 jours avant, elle est rappelée
+        $this->assertCount(1, getCoursesNeedingReminder($this->db, new DateTimeImmutable('2026-11-10 17:00:00+00')));
+        // Un passage plus tardif (personne n'a ouvert le site) la rattrape tant qu'elle n'a pas commencé
+        $this->assertCount(1, getCoursesNeedingReminder($this->db, new DateTimeImmutable('2026-11-12 16:00:00+00')));
+    }
+
+    public function testPasDeRappelPourUneSeanceCommencee(): void
+    {
+        $this->book($this->alex, 2, 'en_attente');
+
+        $this->assertSame([], getCoursesNeedingReminder($this->db, new DateTimeImmutable('2026-11-12 17:00:00+00')));
     }
 
     public function testRappelNeTraiteAucuneDemande(): void
@@ -352,6 +361,34 @@ class MemberFollowUpTest extends TestCase
         markReminderSent($this->db, 4);
 
         $this->assertSame('en_attente', $this->db->query("SELECT statut FROM reservations WHERE id_adherent = {$this->alex}")->fetchColumn());
+    }
+
+    public function testUnRappelNePeutEtreReserveQuUneFois(): void
+    {
+        // Deux visites en même temps : une seule réserve le rappel, donc un seul mail part
+        $this->assertTrue(claimReminder($this->db, 4));
+        $this->assertFalse(claimReminder($this->db, 4));
+    }
+
+    public function testRappelRelibereSiLEnvoiEchoue(): void
+    {
+        $this->book($this->alex, 4, 'en_attente');
+        claimReminder($this->db, 4);
+        releaseReminder($this->db, 4);
+
+        $this->assertCount(1, getCoursesNeedingReminder($this->db, $this->now()));
+    }
+
+    public function testSimulationSansEnvoiNiMarquage(): void
+    {
+        $this->book($this->alex, 4, 'en_attente');
+
+        $lines = sendDueReminders($this->db, $this->now(), null, true);
+
+        $this->assertCount(1, $lines);
+        $this->assertStringContainsString('HIIT J-2', $lines[0]);
+        $this->assertStringContainsString('marc@example.com', $lines[0]);
+        $this->assertCount(1, getCoursesNeedingReminder($this->db, $this->now()));
     }
 
     public function testLienDeValidation(): void

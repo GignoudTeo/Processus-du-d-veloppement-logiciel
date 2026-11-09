@@ -447,7 +447,7 @@ function sendCoachUnregisterMail(string $email, string $coachFirstname, string $
     return sendMail($email, $coachFirstname, buildCoachUnregisterMail($coachFirstname, $courseTitle, $when, $memberName, $reason, $promotedName, $link));
 }
 
-// Rappel J-3 au coach : des demandes sont encore en attente (US6)
+// Rappel 2 jours avant la séance au coach : des demandes sont encore en attente (US6)
 function buildCoachReminderMail(string $coachFirstname, string $courseTitle, string $when, int $pendingCount, string $link): array
 {
     $safeName = htmlspecialchars($coachFirstname);

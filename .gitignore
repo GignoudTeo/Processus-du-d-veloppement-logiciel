@@ -1,3 +1,4 @@
 .DS_Store
 /tools/
 /.phpunit.cache/
+/cron/dernier-passage.txt

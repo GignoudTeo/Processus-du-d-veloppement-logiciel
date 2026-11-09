@@ -6,14 +6,15 @@ require_once __DIR__ . '/history.php';
 const COURSE_TITLE_MAX       = 150;
 const COURSE_DESCRIPTION_MAX = 2000;
 
-// id_coach du compte, ou null s'il n'est pas coach. Rôle lu en base : il a pu changer depuis la connexion
+// id_coach du compte, ou null s'il n'a pas de profil coach actif. Rôle lu en base : il a pu changer depuis la connexion.
+// Un administrateur a tous les droits d'un coach : son profil coach, s'il en a un, compte aussi
 function getCoachIdByAccount(PDO $db, int $accountId): ?int
 {
     $statement = $db->prepare(
         "SELECT co.id_coach
          FROM coachs co
          INNER JOIN comptes c ON c.id_compte = co.id_compte
-         WHERE co.id_compte = :compte AND c.role = 'coach'"
+         WHERE co.id_compte = :compte AND c.role IN ('coach', 'admin')"
     );
     $statement->execute(['compte' => $accountId]);
     $coachId = $statement->fetchColumn();
@@ -112,10 +113,16 @@ function getCourseParticipants(PDO $db, array $courseIds): array
 // Permis au coach de la séance et aux administrateurs. Droits lus en base.
 // Renvoie ['status' => 'removed', 'not_found' (ou séance d'un autre coach), 'started' ou 'already_removed',
 //          'reservation' => infos pour le mail du participant, ou null]
-function removeParticipant(PDO $db, int $reservationId, int $accountId, DateTimeImmutable $now): array
+function removeParticipant(PDO $db, int $reservationId, int $accountId, DateTimeImmutable $now, string $reason): array
 {
+    // Motif obligatoire, comme pour le refus d'une demande : il est envoyé par mail et gardé dans l'historique
+    $reason = trim($reason);
+    if ($reason === '') {
+        return ['status' => 'reason_required', 'reservation' => null];
+    }
+
     $statement = $db->prepare(
-        'SELECT r.statut, c.id_coach, c.titre, c.date_debut, a.prenom, co.email
+        'SELECT r.statut, r.id_cours, r.id_adherent, c.id_coach, c.titre, c.date_debut, a.prenom, a.nom, co.email
          FROM reservations r
          INNER JOIN cours c ON c.id_cours = r.id_cours
          INNER JOIN adherents a ON a.id_adherent = r.id_adherent
@@ -135,11 +142,32 @@ function removeParticipant(PDO $db, int $reservationId, int $accountId, DateTime
         return ['status' => 'started', 'reservation' => $reservation];
     }
 
-    // Condition sur le statut : deux clics en même temps n'envoient qu'un seul mail
-    $statement = $db->prepare("UPDATE reservations SET statut = 'rejetee' WHERE id_reservation = :id AND statut = 'confirmee'");
-    $statement->execute(['id' => $reservationId]);
+    $db->beginTransaction();
+    try {
+        // Condition sur le statut : deux clics en même temps n'envoient qu'un seul mail
+        $statement = $db->prepare(
+            "UPDATE reservations SET statut = 'rejetee', motif = :motif, date_statut = CURRENT_TIMESTAMP
+             WHERE id_reservation = :id AND statut = 'confirmee'"
+        );
+        $statement->execute(['motif' => $reason, 'id' => $reservationId]);
+        $removed = $statement->rowCount() > 0;
 
-    return ['status' => $statement->rowCount() > 0 ? 'removed' : 'already_removed', 'reservation' => $reservation];
+        // Enregistré comme un refus : visible dans l'historique de l'adhérent, du coach et dans les statistiques
+        if ($removed) {
+            logSessionEvent($db, 'refus', $reason, getCourseForHistory($db, (int) $reservation['id_cours']), [
+                'id_adherent'  => (int) $reservation['id_adherent'],
+                'nom_adherent' => $reservation['prenom'] . ' ' . $reservation['nom'],
+            ]);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollBack();
+        throw $e;
+    }
+
+    $reservation['motif'] = $reason;
+
+    return ['status' => $removed ? 'removed' : 'already_removed', 'reservation' => $reservation];
 }
 
 // Date et heure saisies (heure de Paris), ou null si elles n'existent pas (31 février, passage à l'heure d'été...)

@@ -93,6 +93,15 @@ class CoachCourseTest extends TestCase
         $this->assertSame(['Léa', 'Marc', 'Zoé'], array_column(getAssignableCoaches($this->db), 'prenom'));
     }
 
+    public function testAdministrateurAvecUnProfilCoachEstAussiCoach(): void
+    {
+        // Un administrateur a tous les droits d'un coach
+        $this->db->exec("INSERT INTO comptes (id_compte, email, mot_de_passe_hash, role) VALUES (104, 'admin@example.com', 'x', 'admin')");
+        $this->db->exec("INSERT INTO coachs (id_coach, id_compte, nom, prenom) VALUES (4, 104, 'Admin', 'Zoé')");
+
+        $this->assertSame(4, getCoachIdByAccount($this->db, 104));
+    }
+
     public function testChoixDuCoach(): void
     {
         $coaches = getAssignableCoaches($this->db);
@@ -436,9 +445,44 @@ class CoachCourseTest extends TestCase
         return (int) $this->db->lastInsertId();
     }
 
-    private function remove(int $reservationId, int $accountId, string $now = self::BEFORE_COURSE): array
+    private function remove(int $reservationId, int $accountId, string $now = self::BEFORE_COURSE, string $reason = 'Profil incomplet'): array
     {
-        return removeParticipant($this->db, $reservationId, $accountId, new DateTimeImmutable($now));
+        return removeParticipant($this->db, $reservationId, $accountId, new DateTimeImmutable($now), $reason);
+    }
+
+    public function testMotifObligatoirePourRetirerUnParticipant(): void
+    {
+        $reservation = $this->register($this->create(1), 'Alex', 'Bernard');
+
+        $this->assertSame('reason_required', $this->remove($reservation, 101, self::BEFORE_COURSE, '   ')['status']);
+        $this->assertSame('confirmee', $this->statusOf($reservation));
+    }
+
+    public function testLeMotifDuRetraitEstEnregistreCommeUnRefus(): void
+    {
+        $id          = $this->create(1);
+        $reservation = $this->register($id, 'Alex', 'Bernard');
+
+        $result = $this->remove($reservation, 101, self::BEFORE_COURSE, '  Niveau non adapté à la séance ');
+
+        $this->assertSame('Niveau non adapté à la séance', $result['reservation']['motif']);
+        $this->assertSame('Niveau non adapté à la séance',
+            $this->db->query("SELECT motif FROM reservations WHERE id_reservation = $reservation")->fetchColumn());
+
+        $event = $this->db->query('SELECT type, motif, id_cours, nom_adherent FROM historique_seances')->fetchAll();
+        $this->assertSame([[
+            'type' => 'refus', 'motif' => 'Niveau non adapté à la séance', 'id_cours' => $id, 'nom_adherent' => 'Alex Bernard',
+        ]], $event);
+    }
+
+    public function testUnRetraitDejaFaitNEstPasEnregistreDeuxFois(): void
+    {
+        $reservation = $this->register($this->create(1), 'Alex', 'Bernard');
+
+        $this->remove($reservation, 101);
+        $this->remove($reservation, 101);
+
+        $this->assertSame(1, (int) $this->db->query('SELECT COUNT(*) FROM historique_seances')->fetchColumn());
     }
 
     private function statusOf(int $reservationId): string

@@ -19,13 +19,24 @@ class MailerTest extends TestCase
         }
     }
 
+    public function testMailDeRetraitContientLeMotif(): void
+    {
+        $mail = buildParticipantRemovedMail('Alex', 'HIIT du soir', 'Mardi 10 novembre 2026 à 18:00', 'Profil incomplet');
+
+        foreach (['html', 'text'] as $format) {
+            $this->assertStringContainsString('Motif', $mail[$format]);
+            $this->assertStringContainsString('Profil incomplet', $mail[$format]);
+        }
+    }
+
     public function testMailDeRetraitEchappeLeHtml(): void
     {
-        $mail = buildParticipantRemovedMail('<b>Alex</b>', '<script>x</script>', '<i>demain</i>');
+        $mail = buildParticipantRemovedMail('<b>Alex</b>', '<script>x</script>', '<i>demain</i>', '<img src=x>');
 
         $this->assertStringNotContainsString('<script>', $mail['html']);
         $this->assertStringNotContainsString('<b>Alex', $mail['html']);
         $this->assertStringNotContainsString('<i>demain', $mail['html']);
+        $this->assertStringNotContainsString('<img', $mail['html']);
     }
 
     public function testMailDAnnulationDUneSeanceContientLeMotif(): void

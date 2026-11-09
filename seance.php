@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/coach_courses.php';
-require_once __DIR__ . '/includes/course_slots.php';
 require_once __DIR__ . '/includes/form.php';
 require_once __DIR__ . '/includes/mailer.php';
 require_once __DIR__ . '/includes/sports.php';
@@ -50,15 +49,11 @@ if (!$unavailable && !$managesAllCourses && $coachId === null) {
     header('Location: planning.php');
     exit;
 }
-// La création d'une séance se fait salle par salle, créneau par créneau, et seulement par un administrateur (US1)
-if (!$unavailable && !$courseId) {
-    if ($managesAllCourses) {
-        header('Location: creer-seance.php');
-        exit;
-    }
-    setFlash('La création des séances est réservée aux administrateurs.');
-    header('Location: planning.php');
-    exit;
+// Création : ici, une séance classique (nombre de places choisi, jusqu'à la capacité de la salle).
+// Coachs et administrateurs y ont accès ; un administrateur choisit le coach (son propre profil coach par défaut).
+// Seuls les administrateurs créent en plus les séances privatisées, à places réduites (salle ÷ 5), sur creer-seance.php (US1)
+if (!$unavailable && !$courseId && $managesAllCourses && $coachId !== null && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $data['id_coach'] = (string) $coachId;
 }
 if (!$unavailable && $courseId && !$course) {
     setFlash('Cette séance est introuvable, ou elle appartient à un autre coach.');
@@ -117,12 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$unavailable) {
             }
         }
     } else {
-        // Capacité calculée à partir de la salle : capacité ÷ 5, au moins 1 (non modifiable)
-        $input        = $_POST;
-        $roomCapacity = array_column($rooms, 'capacite', 'id_salle')[(int) ($_POST['id_salle'] ?? 0)] ?? null;
-        $input['nb_places_max'] = $roomCapacity === null ? '' : (string) sessionCapacity((int) $roomCapacity);
-
-        [$data, $errors] = validateCourse($input, $rooms, array_map('intval', array_column($sports, 'id_sport')));
+        // Séance classique : nombre de places choisi, au plus la capacité de la salle (vérifié par validateCourse)
+        [$data, $errors] = validateCourse($_POST, $rooms, array_map('intval', array_column($sports, 'id_sport')));
 
         // Une séance garde son coach. À la création, un administrateur le choisit
         $ownerId = $course ? (int) $course['id_coach'] : $coachId;
@@ -164,6 +155,9 @@ require __DIR__ . '/includes/header.php';
     <div class="container form-page">
         <p class="tag"><?= $managesAllCourses ? 'Espace administrateur' : 'Espace coach' ?></p>
         <h1><?= $course ? 'Modifier la' : 'Nouvelle' ?> <span class="highlight">séance</span></h1>
+        <?php if (!$course && $managesAllCourses): ?>
+            <p class="lead">Séance classique. Pour une séance privatisée à places réduites, utilise <a href="creer-seance.php">Créer une séance privatisée</a>.</p>
+        <?php endif; ?>
 
         <?php if ($unavailable): ?>
             <p class="lead">La gestion des séances n'est pas disponible pour le moment, réessaie plus tard.</p>
@@ -224,7 +218,7 @@ require __DIR__ . '/includes/header.php';
                             <option value="">Choisir une salle</option>
                             <?php foreach ($rooms as $room): ?>
                                 <option value="<?= (int) $room['id_salle'] ?>" <?= (string) $room['id_salle'] === ($data['id_salle'] ?? '') ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($room['nom_salle']) ?> (séance de <?= sessionCapacity((int) $room['capacite']) ?> places)
+                                    <?= htmlspecialchars($room['nom_salle']) ?> (<?= (int) $room['capacite'] ?> places)
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -246,8 +240,9 @@ require __DIR__ . '/includes/header.php';
 
                     <div class="field field-full">
                         <label for="nb_places_max">Nombre de places</label>
-                        <input type="text" id="nb_places_max" value="<?= old($data, 'nb_places_max') ?>" readonly>
-                        <p class="muted-text field-hint">Calculé à partir de la salle : sa capacité ÷ 5, au moins 1.</p>
+                        <input type="number" id="nb_places_max" name="nb_places_max" value="<?= old($data, 'nb_places_max') ?>" min="1" required>
+                        <p class="muted-text field-hint">Au plus la capacité de la salle choisie.</p>
+                        <?= fieldError($errors, 'nb_places_max') ?>
                     </div>
 
                     <div class="field field-full">

@@ -13,12 +13,14 @@ $activePage = 'validations';
 
 $now      = new DateTimeImmutable('now', new DateTimeZone(PLANNING_TIMEZONE));
 $db       = getDatabaseConnection();
-$coachId  = getCoachIdByAccount($db, $user['id_compte']);
+$isAdmin  = isAdminAccount($db, $user['id_compte']);
 $courseId = filter_var($_GET['cours'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: null;
 $errors   = [];  // [id_reservation ou 'tous-ID' => message]
 
-if ($coachId === null) {
-    setFlash('Cette page est réservée aux coachs.');
+// Un coach gère les inscriptions de ses séances. Un administrateur a les mêmes droits, sur toutes les séances ($coachId null)
+$coachId = $isAdmin ? null : getCoachIdByAccount($db, $user['id_compte']);
+if (!$isAdmin && $coachId === null) {
+    setFlash('Cette page est réservée aux coachs et aux administrateurs.');
     header('Location: planning.php');
     exit;
 }
@@ -67,6 +69,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     setFlash($result['status'] === 'not_pending' ? 'Cette demande a déjà été traitée.' : 'Cette demande est introuvable.');
                 }
             }
+        } elseif ($action === 'retirer' && $reservationId) {
+            // Participant déjà validé (ex. accepté depuis la liste d'attente) : motif obligatoire, comme pour un refus
+            $reason = reasonFromPost($_POST, 'motif_retrait', REMOVAL_REASONS);
+            if ($reason['error'] !== null) {
+                $errors['retrait-' . $reservationId] = $reason['error'];
+            } else {
+                $result = removeParticipant($db, $reservationId, $user['id_compte'], $now, $reason['motif']);
+                setFlash($result['status'] === 'removed'
+                    ? notifyParticipantRemoval($db, $result['reservation'])
+                    : REMOVAL_ERRORS[$result['status']]);
+            }
         } elseif ($action === 'refuser_tout' && $postCourseId) {
             $reason = reasonFromPost($_POST, 'motif_tous', REFUSAL_REASONS);
             if ($reason['error'] !== null) {
@@ -111,12 +124,15 @@ require __DIR__ . '/includes/header.php';
 
 <section class="form-section">
     <div class="container admin-page">
-        <p class="tag">Espace coach</p>
+        <p class="tag"><?= $isAdmin ? 'Espace administrateur' : 'Espace coach' ?></p>
         <h1>Inscriptions <span class="highlight">à valider</span></h1>
-        <p class="lead">Valide ou refuse les demandes pour tes séances à venir. Une demande non traitée reste en attente : tu peux la traiter jusqu'à la fin de la séance.</p>
+        <p class="lead">
+            Valide ou refuse les demandes pour <?= $isAdmin ? 'toutes les séances à venir' : 'tes séances à venir' ?>.
+            Une demande non traitée reste en attente : tu peux la traiter jusqu'à la fin de la séance.
+        </p>
 
         <?php if ($courses === []): ?>
-            <p class="sports-message" role="status">Tu n'as aucune séance à venir.</p>
+            <p class="sports-message" role="status"><?= $isAdmin ? 'Aucune séance à venir.' : 'Tu n\'as aucune séance à venir.' ?></p>
         <?php endif; ?>
 
         <?php foreach ($courses as $course): ?>
@@ -128,6 +144,7 @@ require __DIR__ . '/includes/header.php';
                         <p class="muted-text">
                             <?= formatLongDate($start) ?> à <?= $start->format('H:i') ?>
                             <?= $course['nom_salle'] ? ' · ' . htmlspecialchars($course['nom_salle']) : '' ?>
+                            <?= $isAdmin ? ' · avec ' . htmlspecialchars($course['nom_coach']) : '' ?>
                         </p>
                     </div>
                     <span class="course-badge<?= $course['complet'] ? ' is-full' : ' is-accepted' ?>">
@@ -203,9 +220,27 @@ require __DIR__ . '/includes/header.php';
                         <?php if ($course['valides'] === []): ?>
                             <p class="muted-text">Personne pour le moment.</p>
                         <?php else: ?>
+                            <?php $canRemove = $start > $now; // plus de retrait une fois la séance commencée ?>
                             <ul class="validation-names">
                                 <?php foreach ($course['valides'] as $member): ?>
-                                    <li><?= htmlspecialchars($member['prenom'] . ' ' . $member['nom']) ?></li>
+                                    <?php $rid = (int) $member['id_reservation']; $memberName = $member['prenom'] . ' ' . $member['nom']; ?>
+                                    <li>
+                                        <?= htmlspecialchars($memberName) ?>
+                                        <?php if ($canRemove): ?>
+                                            <details class="request-refuse validation-remove" <?= isset($errors['retrait-' . $rid]) ? 'open' : '' ?>>
+                                                <summary class="btn btn-danger btn-small">Retirer</summary>
+                                                <form method="post" action="validations.php<?= $courseId ? '?cours=' . $courseId : '' ?>"
+                                                      onsubmit="return confirm('Retirer <?= htmlspecialchars(addslashes($memberName)) ?> de la séance ? Cette personne recevra un mail avec le motif.');">
+                                                    <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                                                    <input type="hidden" name="action" value="retirer">
+                                                    <input type="hidden" name="id_reservation" value="<?= $rid ?>">
+                                                    <input type="hidden" name="id_cours" value="<?= $id ?>">
+                                                    <?= reasonFields('motif_retrait', 'Motif du retrait (envoyé par mail)', REMOVAL_REASONS, $errors['retrait-' . $rid] ?? null, null, '-' . $rid) ?>
+                                                    <button type="submit" class="btn btn-danger">Confirmer le retrait</button>
+                                                </form>
+                                            </details>
+                                        <?php endif; ?>
+                                    </li>
                                 <?php endforeach; ?>
                             </ul>
                         <?php endif; ?>

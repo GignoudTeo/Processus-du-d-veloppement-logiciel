@@ -1,5 +1,5 @@
 <?php
-// Création d'une séance par un administrateur : la salle d'abord, puis un créneau libre (US1)
+// Création d'une séance privatisée (places réduites) par un administrateur : la salle d'abord, puis un créneau libre (US1)
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/coach_courses.php';
 require_once __DIR__ . '/includes/course_slots.php';
@@ -8,7 +8,7 @@ require_once __DIR__ . '/includes/sports.php';
 
 requireAdmin();
 
-$pageTitle  = 'Créer une séance';
+$pageTitle  = 'Créer une séance privatisée';
 $activePage = 'creer-seance';
 
 $timezone = new DateTimeZone(PLANNING_TIMEZONE);
@@ -62,7 +62,8 @@ require __DIR__ . '/includes/header.php';
 <section class="form-section">
     <div class="container form-page">
         <p class="tag">Espace administrateur</p>
-        <h1>Créer une <span class="highlight">séance</span></h1>
+        <h1>Créer une séance <span class="highlight">privatisée</span></h1>
+        <p class="lead">Séance à places réduites (capacité de la salle ÷ 5), réservée aux administrateurs. Les coachs créent leurs séances classiques depuis le planning.</p>
 
         <?php if (isset($errors['global'])): ?>
             <p class="form-alert" role="alert"><?= htmlspecialchars($errors['global']) ?></p>

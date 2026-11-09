@@ -112,10 +112,13 @@ require __DIR__ . '/includes/header.php';
                 <?php if ($selectedCoach): ?>
                     <p class="tt-coach-filter">Avec <?= htmlspecialchars($selectedCoach) ?></p>
                 <?php endif; ?>
-                <?php if ($managesAllCourses): ?>
-                    <a class="btn tt-new-course" href="creer-seance.php">Créer une séance</a>
-                <?php elseif ($myCoachId !== null): ?>
-                    <a class="btn tt-new-course" href="validations.php">Gérer les inscriptions</a>
+                <?php // Un administrateur a les droits d'un coach, plus la création des séances privatisées ?>
+                <?php if ($managesAllCourses || $myCoachId !== null): ?>
+                    <a class="btn tt-new-course" href="seance.php">Créer une séance</a>
+                    <?php if ($managesAllCourses): ?>
+                        <a class="btn tt-new-course" href="creer-seance.php">Créer une séance privatisée</a>
+                    <?php endif; ?>
+                    <a class="btn btn-outline tt-new-course" href="validations.php">Gérer les inscriptions</a>
                 <?php endif; ?>
             </div>
 
@@ -228,7 +231,7 @@ require __DIR__ . '/includes/header.php';
                                 // Gestion dans la fenêtre de détail : séances du coach connecté, ou toutes pour un administrateur
                                 if ($managesAllCourses || (int) $course['id_coach'] === $myCoachId) {
                                     $details['lien_modifier']    = 'seance.php?id=' . (int) $course['id_cours'];
-                                    $details['lien_valider']     = (int) $course['id_coach'] === $myCoachId && !$course['termine']
+                                    $details['lien_valider']     = !$course['termine']
                                         ? 'validations.php?cours=' . (int) $course['id_cours'] . '#cours-' . (int) $course['id_cours']
                                         : null;
                                     $details['inscrits']         = $participants[(int) $course['id_cours']] ?? [];
@@ -367,15 +370,20 @@ require __DIR__ . '/includes/header.php';
                 <template id="participant-row">
                     <li>
                         <span class="course-dialog-participant-name"></span>
-                        <form method="post" action="retirer-participant.php">
-                            <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-                            <input type="hidden" name="id_reservation">
-                            <input type="hidden" name="semaine" value="<?= $weekStart->format('Y-m-d') ?>">
-                            <?php foreach ($filters as $key => $value): ?>
-                                <input type="hidden" name="<?= $key ?>" value="<?= (int) $value ?>">
-                            <?php endforeach; ?>
-                            <button type="submit" class="course-dialog-remove">&times;</button>
-                        </form>
+                        <!-- La croix ouvre le choix du motif, obligatoire comme pour un refus -->
+                        <details class="course-dialog-remove-box">
+                            <summary class="course-dialog-remove">&times;</summary>
+                            <form method="post" action="retirer-participant.php">
+                                <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                                <input type="hidden" name="id_reservation">
+                                <input type="hidden" name="semaine" value="<?= $weekStart->format('Y-m-d') ?>">
+                                <?php foreach ($filters as $key => $value): ?>
+                                    <input type="hidden" name="<?= $key ?>" value="<?= (int) $value ?>">
+                                <?php endforeach; ?>
+                                <?= reasonFields('motif_retrait', 'Motif du retrait (envoyé par mail)', REMOVAL_REASONS) ?>
+                                <button type="submit" class="btn btn-danger btn-small">Retirer de la séance</button>
+                            </form>
+                        </details>
                     </li>
                 </template>
             <?php endif; ?>

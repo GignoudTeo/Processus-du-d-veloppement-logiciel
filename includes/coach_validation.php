@@ -1,17 +1,52 @@
 <?php
 // Validation par le coach des demandes d'inscription à ses séances (US4, US5)
 require_once __DIR__ . '/reservations.php';
+require_once __DIR__ . '/coach_courses.php';
+require_once __DIR__ . '/mailer.php';
+
+// Après removeParticipant() réussi : prévient la personne retirée (avec le motif) puis propose la place libérée
+// à la première personne de la liste d'attente (US3). Renvoie le message à afficher au coach
+function notifyParticipantRemoval(PDO $db, array $reservation): string
+{
+    $start    = (new DateTimeImmutable($reservation['date_debut']))->setTimezone(new DateTimeZone(PLANNING_TIMEZONE));
+    $when     = formatLongDate($start) . ' à ' . $start->format('H:i');
+    $mailSent = sendParticipantRemovedMail($reservation['email'], $reservation['prenom'], $reservation['titre'], $when, $reservation['motif']);
+
+    $promoted = promoteFromWaitingList($db, (int) $reservation['id_cours']);
+    if ($promoted) {
+        sendWaitingListPromotedMail($promoted['email'], $promoted['prenom'], $reservation['titre'], $when);
+    }
+
+    return $reservation['prenom'] . ' a été retiré(e) de la séance.'
+        . ($mailSent ? ' Un mail lui indique le motif.' : ' Le mail n\'a pas pu être envoyé : préviens cette personne toi-même.')
+        . ($promoted ? ' ' . $promoted['prenom'] . ', premier(ère) sur la liste d\'attente, t\'est proposé(e).' : '');
+}
+
+// Messages quand removeParticipant() n'a pas retiré la personne
+const REMOVAL_ERRORS = [
+    'reason_required' => 'Indique le motif du retrait : il est envoyé par mail au participant.',
+    'not_found'       => 'Ce participant est introuvable, ou la séance appartient à un autre coach.',
+    'started'         => 'Cette séance a déjà commencé : ses participants ne peuvent plus être retirés.',
+    'already_removed' => 'Ce participant a déjà été retiré de la séance.',
+];
 
 // Séances du coach qui ne sont pas terminées, avec leurs demandes, validés et liste d'attente.
+// $coachId null : toutes les séances (administrateur, qui a les mêmes droits qu'un coach sur toutes les séances).
 // Une demande non traitée reste en attente : le coach peut la traiter jusqu'à la fin de la séance.
 // Renvoie une liste de séances triées par date, chacune avec 'demandes', 'valides', 'liste_attente'
-function getCoachBookingOverview(PDO $db, int $coachId, DateTimeImmutable $now, ?int $courseId = null): array
+function getCoachBookingOverview(PDO $db, ?int $coachId, DateTimeImmutable $now, ?int $courseId = null): array
 {
-    $sql = "SELECT c.id_cours, c.titre, c.date_debut, c.date_fin, c.nb_places_max, s.nom_salle
+    $sql = "SELECT c.id_cours, c.titre, c.date_debut, c.date_fin, c.nb_places_max, s.nom_salle,
+                   co.prenom || ' ' || co.nom AS nom_coach
             FROM cours c
             LEFT JOIN salles s ON s.id_salle = c.id_salle
-            WHERE c.id_coach = :coach AND c.date_fin > :now";
-    $params = ['coach' => $coachId, 'now' => toUtcString($now)];
+            INNER JOIN coachs co ON co.id_coach = c.id_coach
+            WHERE c.date_fin > :now";
+    $params = ['now' => toUtcString($now)];
+    if ($coachId !== null) {
+        $sql .= ' AND c.id_coach = :coach';
+        $params['coach'] = $coachId;
+    }
     if ($courseId !== null) {
         $sql .= ' AND c.id_cours = :cours';
         $params['cours'] = $courseId;
@@ -58,15 +93,19 @@ function getCoachBookingOverview(PDO $db, int $coachId, DateTimeImmutable $now, 
     return $courses;
 }
 
-// Nombre de demandes en attente sur les séances non terminées du coach (pastille du menu)
-function countCoachPendingRequests(PDO $db, int $coachId, DateTimeImmutable $now): int
+// Nombre de demandes en attente sur les séances non terminées du coach (pastille du menu). $coachId null : toutes
+function countCoachPendingRequests(PDO $db, ?int $coachId, DateTimeImmutable $now): int
 {
-    $statement = $db->prepare(
-        "SELECT COUNT(*) FROM reservations r
-         INNER JOIN cours c ON c.id_cours = r.id_cours
-         WHERE c.id_coach = :coach AND c.date_fin > :now AND r.statut = 'en_attente'"
-    );
-    $statement->execute(['coach' => $coachId, 'now' => toUtcString($now)]);
+    $params = ['now' => toUtcString($now)];
+    $sql    = "SELECT COUNT(*) FROM reservations r
+               INNER JOIN cours c ON c.id_cours = r.id_cours
+               WHERE c.date_fin > :now AND r.statut = 'en_attente'";
+    if ($coachId !== null) {
+        $sql .= ' AND c.id_coach = :coach';
+        $params['coach'] = $coachId;
+    }
+    $statement = $db->prepare($sql);
+    $statement->execute($params);
 
     return (int) $statement->fetchColumn();
 }
@@ -81,8 +120,9 @@ function memberAge(?string $birthdate, DateTimeImmutable $now): ?int
     return (new DateTimeImmutable(substr($birthdate, 0, 10)))->diff($now)->y;
 }
 
-// Réservation d'une séance du coach, avec la séance et l'adhérent, ou null (introuvable ou autre coach)
-function getCoachBooking(PDO $db, int $reservationId, int $coachId): ?array
+// Réservation d'une séance du coach, avec la séance et l'adhérent, ou null (introuvable ou autre coach).
+// $coachId null : n'importe quelle séance (administrateur)
+function getCoachBooking(PDO $db, int $reservationId, ?int $coachId): ?array
 {
     $statement = $db->prepare(
         "SELECT r.id_reservation, r.id_cours, r.id_adherent, r.statut,
@@ -92,9 +132,9 @@ function getCoachBooking(PDO $db, int $reservationId, int $coachId): ?array
          INNER JOIN cours c ON c.id_cours = r.id_cours
          INNER JOIN adherents a ON a.id_adherent = r.id_adherent
          INNER JOIN comptes cpt ON cpt.id_compte = a.id_compte
-         WHERE r.id_reservation = :id AND c.id_coach = :coach"
+         WHERE r.id_reservation = :id" . ($coachId === null ? '' : ' AND c.id_coach = :coach')
     );
-    $statement->execute(['id' => $reservationId, 'coach' => $coachId]);
+    $statement->execute(['id' => $reservationId] + ($coachId === null ? [] : ['coach' => $coachId]));
 
     return $statement->fetch(PDO::FETCH_ASSOC) ?: null;
 }
@@ -109,7 +149,7 @@ function countValidated(PDO $db, int $courseId): int
 
 // Valide une demande. Le nombre de validés ne peut pas dépasser la capacité de la séance.
 // Renvoie ['status' => 'validated', 'not_found', 'not_pending', 'ended' ou 'full', 'booking' => réservation ou null]
-function validateBooking(PDO $db, int $reservationId, int $coachId, DateTimeImmutable $now): array
+function validateBooking(PDO $db, int $reservationId, ?int $coachId, DateTimeImmutable $now): array
 {
     $db->beginTransaction();
     try {
@@ -152,7 +192,7 @@ function validateBooking(PDO $db, int $reservationId, int $coachId, DateTimeImmu
 
 // Refuse une demande en attente, avec un motif obligatoire. Le refus est enregistré dans l'historique.
 // Renvoie ['status' => 'refused', 'not_found', 'not_pending' ou 'reason_required', 'booking' => réservation ou null]
-function refuseBooking(PDO $db, int $reservationId, int $coachId, string $reason): array
+function refuseBooking(PDO $db, int $reservationId, ?int $coachId, string $reason): array
 {
     $reason = trim($reason);
     if ($reason === '') {
@@ -203,7 +243,7 @@ function refusePendingBooking(PDO $db, array $booking, string $reason): bool
 
 // Séance complète : refuse en une fois toutes les demandes encore en attente, chacune enregistrée à part.
 // Renvoie ['status' => 'refused', 'not_found', 'not_full' ou 'reason_required', 'refused' => réservations refusées]
-function refuseAllPending(PDO $db, int $courseId, int $coachId, string $reason): array
+function refuseAllPending(PDO $db, int $courseId, ?int $coachId, string $reason): array
 {
     $reason = trim($reason);
     if ($reason === '') {
@@ -213,7 +253,7 @@ function refuseAllPending(PDO $db, int $courseId, int $coachId, string $reason):
     $db->beginTransaction();
     try {
         $course = getCourseForHistory($db, $courseId);
-        if (!$course || (int) $course['id_coach'] !== $coachId) {
+        if (!$course || ($coachId !== null && (int) $course['id_coach'] !== $coachId)) {
             $db->rollBack();
             return ['status' => 'not_found', 'refused' => []];
         }

@@ -1065,6 +1065,14 @@ p { margin: 0 0 1em; }
 
 .course-dialog-remove:hover { background: #f87171; color: var(--color-black); }
 
+/* Croix = <summary> : un clic ouvre le choix du motif sous le nom */
+.course-dialog-participants li { flex-wrap: wrap; }
+summary.course-dialog-remove { display: flex; align-items: center; justify-content: center; list-style: none; }
+summary.course-dialog-remove::-webkit-details-marker { display: none; }
+.course-dialog-remove-box[open] { flex-basis: 100%; order: 1; }
+.course-dialog-remove-box[open] summary { margin-left: auto; margin-bottom: 8px; }
+.course-dialog-remove-box .field { margin-bottom: 10px; }
+
 .course-dialog-no-participant { margin: 0; }
 
 .tt-coach-filter {
@@ -1593,6 +1601,9 @@ p { margin: 0 0 1em; }
 }
 
 .validation-names { margin: 0; padding-left: 20px; }
+.validation-names li + li { margin-top: 6px; }
+.validation-remove { display: inline-block; margin-left: 8px; vertical-align: middle; }
+.validation-remove[open] { display: block; margin: 8px 0 12px; }
 
 /* Création de séance (admin) */
 .room-grid {

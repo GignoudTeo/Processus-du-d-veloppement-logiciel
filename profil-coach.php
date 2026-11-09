@@ -20,7 +20,7 @@ $coachId = getCoachIdByAccount($db, $user['id_compte']);
 
 // Seul le coach connecté voit son profil, et seulement ses données
 if ($coachId === null) {
-    setFlash('Cette page est réservée aux coachs.');
+    setFlash('Cette page affiche les statistiques d\'un profil coach : ton compte n\'en a pas.');
     header('Location: index.php');
     exit;
 }

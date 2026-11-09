@@ -13,6 +13,14 @@ const REFUSAL_REASONS = [
     'Séance réservée à un autre groupe',
 ];
 
+// Motifs proposés au coach qui retire un participant déjà validé
+const REMOVAL_REASONS = [
+    'Niveau non adapté à la séance',
+    'Profil incomplet',
+    'Séance réservée à un autre groupe',
+    'Nombre de places réduit',
+];
+
 // Motifs proposés à l'adhérent qui se désinscrit
 const UNREGISTER_REASONS = [
     'Empêchement personnel',

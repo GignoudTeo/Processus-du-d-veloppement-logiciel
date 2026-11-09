@@ -106,6 +106,29 @@ class CoachValidationTest extends TestCase
         $this->assertSame(2, countCoachPendingRequests($this->db, 1, $this->now()));
     }
 
+    // ---------- Administrateur : mêmes droits qu'un coach, sur toutes les séances (coach null) ----------
+
+    public function testUnAdministrateurVoitLesDemandesDeToutesLesSeances(): void
+    {
+        $this->booking(1, 'Alex');
+        $this->booking(2, 'Sam');
+
+        $courses = getCoachBookingOverview($this->db, null, $this->now());
+
+        $this->assertSame([1, 2], array_map('intval', array_column($courses, 'id_cours')));
+        $this->assertSame('Léa Durand', $courses[1]['nom_coach']);
+        $this->assertSame(2, countCoachPendingRequests($this->db, null, $this->now()));
+    }
+
+    public function testUnAdministrateurValideEtRefuseSurNImporteQuelleSeance(): void
+    {
+        $validated = $this->booking(2, 'Alex');
+        $refused   = $this->booking(2, 'Sam');
+
+        $this->assertSame('validated', validateBooking($this->db, $validated, null, $this->now())['status']);
+        $this->assertSame('refused', refuseBooking($this->db, $refused, null, 'Profil incomplet')['status']);
+    }
+
     // ---------- validateBooking ----------
 
     public function testValidation(): void

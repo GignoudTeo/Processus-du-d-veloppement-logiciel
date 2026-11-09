@@ -174,21 +174,30 @@
         course.inscrits.forEach(function (participant) {
             const name = participant.prenom + ' ' + participant.nom;
             const row = template.content.cloneNode(true);
-            const form = row.querySelector('form');
+            const box = row.querySelector('.course-dialog-remove-box');
+            const form = box.querySelector('form');
 
             row.querySelector('.course-dialog-participant-name').textContent = name;
 
             // Pas de croix sur une séance déjà commencée
             if (course.retrait_possible) {
-                form.elements.id_reservation.value = participant.id_reservation;
-                form.querySelector('button').setAttribute('aria-label', 'Retirer ' + name);
+                const id = participant.id_reservation;
+                const select = form.querySelector('select');
+
+                form.elements.id_reservation.value = id;
+                box.querySelector('summary').setAttribute('aria-label', 'Retirer ' + name);
+                // Un identifiant par ligne pour que chaque libellé pointe vers sa propre liste de motifs
+                select.id = 'motif-retrait-' + id + '-choix';
+                form.querySelector('label').htmlFor = select.id;
+                setupReasonField(form.querySelector('[data-reason]'));
+
                 form.addEventListener('submit', function (event) {
-                    if (!window.confirm('Retirer ' + name + ' de cette séance ? Cette personne sera prévenue par mail.')) {
+                    if (!window.confirm('Retirer ' + name + ' de cette séance ? Cette personne recevra un mail avec le motif.')) {
                         event.preventDefault();
                     }
                 });
             } else {
-                form.remove();
+                box.remove();
             }
 
             list.appendChild(row);

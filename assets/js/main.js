@@ -38,7 +38,8 @@
 })();
 
 // Choix d'un motif : le champ libre n'apparaît (et n'est obligatoire) que pour « Autre »
-document.querySelectorAll('[data-reason]').forEach(function (field) {
+// setupReasonField est aussi appelée par planning.js pour les champs ajoutés après le chargement
+function setupReasonField(field) {
     const select = field.querySelector('select');
     const other = field.querySelector('textarea');
 
@@ -51,7 +52,8 @@ document.querySelectorAll('[data-reason]').forEach(function (field) {
 
     select.addEventListener('change', update);
     other.hidden = select.value !== 'autre';
-});
+}
+document.querySelectorAll('[data-reason]').forEach(setupReasonField);
 
 // Bouton "Retour" : le navigateur ressort la page de sa mémoire (bfcache),
 // on la recharge pour afficher l'état réel de la session (ex. après déconnexion)

@@ -28,6 +28,23 @@ if ($isAdmin) {
         error_log('Header : ' . $e->getMessage());
     }
 }
+
+// Menu Coach : pastille avec le nombre de demandes d'inscription à valider
+$isCoach         = $user && $user['role'] === 'coach';
+$pendingBookings = 0;
+if ($isCoach) {
+    require_once __DIR__ . '/coach_courses.php';
+    require_once __DIR__ . '/coach_validation.php';
+    try {
+        $headerDb      = getDatabaseConnection();
+        $headerCoachId = getCoachIdByAccount($headerDb, $user['id_compte']);
+        if ($headerCoachId !== null) {
+            $pendingBookings = countCoachPendingRequests($headerDb, $headerCoachId, new DateTimeImmutable());
+        }
+    } catch (PDOException $e) {
+        error_log('Header : ' . $e->getMessage());
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -60,7 +77,7 @@ if ($isAdmin) {
 
             <div class="nav-actions">
                 <?php if ($isAdmin): ?>
-                    <details class="nav-dropdown<?= in_array($activePage, ['administration', 'demandes'], true) ? ' is-current' : '' ?>">
+                    <details class="nav-dropdown<?= in_array($activePage, ['administration', 'demandes', 'creer-seance', 'statistiques'], true) ? ' is-current' : '' ?>">
                         <summary>
                             Admin
                             <?php if ($pendingRequests > 0): ?><span class="nav-badge"><?= $pendingRequests ?></span><?php endif; ?>
@@ -72,6 +89,25 @@ if ($isAdmin) {
                                 Demandes coach
                                 <?php if ($pendingRequests > 0): ?><span class="nav-badge"><?= $pendingRequests ?></span><?php endif; ?>
                             </a>
+                            <a href="creer-seance.php" class="<?= $activePage === 'creer-seance' ? 'active' : '' ?>">Créer une séance</a>
+                            <a href="statistiques.php" class="<?= $activePage === 'statistiques' ? 'active' : '' ?>">Statistiques</a>
+                        </div>
+                    </details>
+                <?php endif; ?>
+
+                <?php if ($isCoach): ?>
+                    <details class="nav-dropdown<?= in_array($activePage, ['validations', 'profil-coach'], true) ? ' is-current' : '' ?>">
+                        <summary>
+                            Coach
+                            <?php if ($pendingBookings > 0): ?><span class="nav-badge"><?= $pendingBookings ?></span><?php endif; ?>
+                        </summary>
+                        <div class="nav-dropdown-menu">
+                            <p class="nav-dropdown-title">Espace coach</p>
+                            <a href="validations.php" class="<?= $activePage === 'validations' ? 'active' : '' ?>">
+                                Inscriptions à valider
+                                <?php if ($pendingBookings > 0): ?><span class="nav-badge"><?= $pendingBookings ?></span><?php endif; ?>
+                            </a>
+                            <a href="profil-coach.php" class="<?= $activePage === 'profil-coach' ? 'active' : '' ?>">Profil coach</a>
                         </div>
                     </details>
                 <?php endif; ?>
@@ -86,6 +122,8 @@ if ($isAdmin) {
                             <p class="nav-dropdown-title"><?= $roleLabels[$user['role']] ?? htmlspecialchars($user['role']) ?></p>
                             <a href="compte.php" class="<?= $activePage === 'compte' ? 'active' : '' ?>">Mon compte</a>
                             <?php if ($user['role'] === 'adherent'): ?>
+                                <a href="historique.php">Mes séances et venues</a>
+                                <a href="progression.php">Ma progression</a>
                                 <a href="devenir-coach.php">Devenir coach</a>
                             <?php endif; ?>
                             <form method="post" action="deconnexion.php" class="nav-logout">

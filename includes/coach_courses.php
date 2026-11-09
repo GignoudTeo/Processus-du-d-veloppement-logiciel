@@ -1,6 +1,7 @@
 <?php
 // Séances gérées par les coachs (leurs propres cours) et les administrateurs (tous les cours)
 require_once __DIR__ . '/planning.php';
+require_once __DIR__ . '/history.php';
 
 const COURSE_TITLE_MAX       = 150;
 const COURSE_DESCRIPTION_MAX = 2000;
@@ -308,33 +309,50 @@ function validateCancellationReason(string $reason): array
     return ['motif' => $reason, 'error' => null];
 }
 
-// Annule (supprime) une séance et renvoie ses inscrits confirmés à prévenir : [['prenom', 'email'], ...].
-// Inscrits lus et séance supprimée dans la même transaction : personne n'est oublié.
-// Renvoie null si le cours n'existe pas ou appartient à un autre coach
-function cancelCourse(PDO $db, int $courseId, int $coachId): ?array
+// Annule une séance à venir : elle est supprimée, après avoir été enregistrée dans l'historique
+// (une ligne pour le coach, une par inscrit pour leur historique). Renvoie les inscrits à prévenir
+// (validés, en attente et en liste d'attente) : [['prenom', 'email', 'statut'], ...].
+// Inscrits lus, historique écrit et séance supprimée dans la même transaction : personne n'est oublié.
+// Renvoie null si le cours n'existe pas, appartient à un autre coach ou a déjà commencé
+function cancelCourse(PDO $db, int $courseId, int $coachId, string $reason, ?DateTimeImmutable $now = null): ?array
 {
+    $now = $now ?? new DateTimeImmutable();
+
     $db->beginTransaction();
     try {
+        $course = getCourseForHistory($db, $courseId);
+        if (!$course || (int) $course['id_coach'] !== $coachId || new DateTimeImmutable($course['date_debut']) <= $now) {
+            $db->rollBack();
+            return null;
+        }
+
         $statement = $db->prepare(
-            "SELECT a.prenom, co.email
+            "SELECT a.id_adherent, a.prenom, a.nom, co.email, r.statut
              FROM reservations r
              INNER JOIN adherents a ON a.id_adherent = r.id_adherent
              INNER JOIN comptes co ON co.id_compte = a.id_compte
-             WHERE r.id_cours = :id AND r.statut = 'confirmee'
+             WHERE r.id_cours = :id AND r.statut IN ('en_attente', 'confirmee', 'liste_attente')
              ORDER BY a.nom, a.prenom"
         );
         $statement->execute(['id' => $courseId]);
         $participants = $statement->fetchAll(PDO::FETCH_ASSOC);
 
-        if (!deleteCourse($db, $courseId, $coachId)) {
-            $db->rollBack();
-            return null;
+        logSessionEvent($db, 'annulation', $reason, $course);
+        foreach ($participants as $participant) {
+            logSessionEvent($db, 'annulation', $reason, $course, [
+                'id_adherent'  => (int) $participant['id_adherent'],
+                'nom_adherent' => $participant['prenom'] . ' ' . $participant['nom'],
+            ]);
         }
+
+        deleteCourse($db, $courseId, $coachId);
         $db->commit();
 
-        return $participants;
+        return array_map(fn (array $p) => ['prenom' => $p['prenom'], 'email' => $p['email'], 'statut' => $p['statut']], $participants);
     } catch (Throwable $e) {
-        $db->rollBack();
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         throw $e;
     }
 }

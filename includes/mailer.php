@@ -328,6 +328,148 @@ function sendCourseCancelledMail(string $email, string $firstname, string $cours
     return sendMail($email, $firstname, buildCourseCancelledMail($firstname, $courseTitle, $when, $reason));
 }
 
+// Bloc « séance » commun aux mails d'inscription
+function mailSessionBox(string $courseTitle, string $when): string
+{
+    return '<p style="font-size: 15px; margin: 0; padding: 12px 16px; border-left: 4px solid #ffd100; background: #161616;">'
+        . '<strong>' . htmlspecialchars($courseTitle) . '</strong><br>' . htmlspecialchars($when) . '</p>';
+}
+
+// Décision du coach sur une demande d'inscription (US4). $reason : motif du refus
+function buildBookingDecisionMail(string $firstname, string $courseTitle, string $when, bool $accepted, string $reason = ''): array
+{
+    $safeName = htmlspecialchars($firstname);
+    $box      = mailSessionBox($courseTitle, $when);
+
+    if ($accepted) {
+        $buttons = mailButton('Voir mon historique', APP_URL . '/historique.php')
+            . mailButton('Mon QR code', APP_URL . '/qrcode.php', false);
+        $html = mailLayout(<<<HTML
+            <p style="font-size: 16px;">Bonjour {$safeName},</p>
+            <p style="font-size: 16px;">Bonne nouvelle : le coach a <strong style="color: #4ade80;">validé</strong> ton inscription. Ta place est réservée !</p>
+            {$box}
+            <p style="font-size: 16px; margin-top: 20px;">Pense à arriver quelques minutes avant le début de la séance.</p>
+            <p style="margin: 28px 0 0;">{$buttons}</p>
+            HTML);
+        $text = "Bonjour {$firstname},\n\nLe coach a validé ton inscription, ta place est réservée :\n{$courseTitle}\n{$when}\n\n"
+            . "Voir mon historique : " . APP_URL . "/historique.php\n\nUne question ? Réponds simplement à ce mail.";
+
+        return ['subject' => 'Inscription validée : ' . $courseTitle . ' (' . $when . ')', 'html' => $html, 'text' => $text];
+    }
+
+    $safeReason = nl2br(htmlspecialchars($reason));
+    $button     = mailButton('Trouver une autre séance', APP_URL . '/planning.php');
+    $html       = mailLayout(<<<HTML
+        <p style="font-size: 16px;">Bonjour {$safeName},</p>
+        <p style="font-size: 16px;">Le coach n'a pas pu retenir ta demande d'inscription à cette séance :</p>
+        {$box}
+        <p style="font-size: 16px; margin: 20px 0 4px;"><strong>Motif du refus :</strong></p>
+        <p style="font-size: 15px; margin: 0; padding: 12px 16px; border-left: 4px solid #ffd100; background: #161616;">{$safeReason}</p>
+        <p style="font-size: 16px; margin-top: 20px;">D'autres séances t'attendent dans le planning.</p>
+        <p style="margin: 28px 0 0;">{$button}</p>
+        HTML);
+    $text = "Bonjour {$firstname},\n\nLe coach n'a pas pu retenir ta demande d'inscription à cette séance :\n{$courseTitle}\n{$when}\n\n"
+        . "Motif du refus :\n{$reason}\n\n"
+        . "Voir le planning : " . APP_URL . "/planning.php\n\nUne question ? Réponds simplement à ce mail.";
+
+    return ['subject' => 'Inscription refusée : ' . $courseTitle . ' (' . $when . ')', 'html' => $html, 'text' => $text];
+}
+
+function sendBookingDecisionMail(string $email, string $firstname, string $courseTitle, string $when, bool $accepted, string $reason = ''): bool
+{
+    return sendMail($email, $firstname, buildBookingDecisionMail($firstname, $courseTitle, $when, $accepted, $reason));
+}
+
+// Une place s'est libérée : l'adhérent en tête de la liste d'attente est proposé au coach (US3)
+function buildWaitingListPromotedMail(string $firstname, string $courseTitle, string $when): array
+{
+    $safeName = htmlspecialchars($firstname);
+    $box      = mailSessionBox($courseTitle, $when);
+    $button   = mailButton('Voir mon historique', APP_URL . '/historique.php');
+
+    $html = mailLayout(<<<HTML
+        <p style="font-size: 16px;">Bonjour {$safeName},</p>
+        <p style="font-size: 16px;">Une place s'est libérée ! Tu étais <strong style="color: #ffd100;">premier(ère) sur la liste d'attente</strong> de cette séance :</p>
+        {$box}
+        <p style="font-size: 16px; margin-top: 20px;">Ta demande vient d'être transmise au coach. Tu recevras un mail dès qu'il l'aura validée.</p>
+        <p style="margin: 28px 0 0;">{$button}</p>
+        HTML);
+    $text = "Bonjour {$firstname},\n\nUne place s'est libérée ! Tu étais premier(ère) sur la liste d'attente de cette séance :\n"
+        . "{$courseTitle}\n{$when}\n\nTa demande vient d'être transmise au coach. Tu recevras un mail dès qu'il l'aura validée.\n\n"
+        . "Une question ? Réponds simplement à ce mail.";
+
+    return ['subject' => 'Une place s\'est libérée : ' . $courseTitle, 'html' => $html, 'text' => $text];
+}
+
+function sendWaitingListPromotedMail(string $email, string $firstname, string $courseTitle, string $when): bool
+{
+    return sendMail($email, $firstname, buildWaitingListPromotedMail($firstname, $courseTitle, $when));
+}
+
+// Notification au coach : un adhérent s'est désinscrit, et éventuellement un autre a été proposé depuis la liste d'attente (US7, US3)
+function buildCoachUnregisterMail(string $coachFirstname, string $courseTitle, string $when, string $memberName, string $reason, ?string $promotedName, string $link): array
+{
+    $safeName   = htmlspecialchars($coachFirstname);
+    $safeMember = htmlspecialchars($memberName);
+    $safeReason = nl2br(htmlspecialchars($reason));
+    $box        = mailSessionBox($courseTitle, $when);
+    $promoted   = $promotedName === null
+        ? ''
+        : '<p style="font-size: 16px; margin-top: 20px;"><strong>' . htmlspecialchars($promotedName)
+          . '</strong>, premier(ère) sur la liste d\'attente, t\'est proposé(e) : sa demande t\'attend sur la page de validation.</p>';
+    $button = mailButton('Gérer les inscriptions', $link);
+
+    $html = mailLayout(<<<HTML
+        <p style="font-size: 16px;">Bonjour {$safeName},</p>
+        <p style="font-size: 16px;"><strong>{$safeMember}</strong> s'est désinscrit(e) de ta séance :</p>
+        {$box}
+        <p style="font-size: 16px; margin: 20px 0 4px;"><strong>Motif :</strong></p>
+        <p style="font-size: 15px; margin: 0; padding: 12px 16px; border-left: 4px solid #ffd100; background: #161616;">{$safeReason}</p>
+        {$promoted}
+        <p style="margin: 28px 0 0;">{$button}</p>
+        HTML);
+    $text = "Bonjour {$coachFirstname},\n\n{$memberName} s'est désinscrit(e) de ta séance :\n{$courseTitle}\n{$when}\n\nMotif :\n{$reason}\n\n"
+        . ($promotedName === null ? '' : "{$promotedName}, premier(ère) sur la liste d'attente, t'est proposé(e).\n\n")
+        . "Gérer les inscriptions : {$link}";
+
+    return ['subject' => 'Désinscription : ' . $courseTitle . ' (' . $when . ')', 'html' => $html, 'text' => $text];
+}
+
+function sendCoachUnregisterMail(string $email, string $coachFirstname, string $courseTitle, string $when, string $memberName, string $reason, ?string $promotedName, string $link): bool
+{
+    return sendMail($email, $coachFirstname, buildCoachUnregisterMail($coachFirstname, $courseTitle, $when, $memberName, $reason, $promotedName, $link));
+}
+
+// Rappel J-3 au coach : des demandes sont encore en attente (US6)
+function buildCoachReminderMail(string $coachFirstname, string $courseTitle, string $when, int $pendingCount, string $link): array
+{
+    $safeName = htmlspecialchars($coachFirstname);
+    $box      = mailSessionBox($courseTitle, $when);
+    $requests = $pendingCount === 1 ? '1 demande d\'inscription est' : $pendingCount . ' demandes d\'inscription sont';
+    $button   = mailButton('Traiter les demandes', $link);
+
+    $html = mailLayout(<<<HTML
+        <p style="font-size: 16px;">Bonjour {$safeName},</p>
+        <p style="font-size: 16px;">Ta séance approche et <strong style="color: #ffd100;">{$requests} encore en attente</strong> :</p>
+        {$box}
+        <p style="font-size: 16px; margin-top: 20px;">Pense à les valider ou à les refuser pour que les adhérents sachent s'ils peuvent venir. Rien n'est fait automatiquement.</p>
+        <p style="margin: 28px 0 0;">{$button}</p>
+        HTML);
+    $text = "Bonjour {$coachFirstname},\n\nTa séance approche et {$requests} encore en attente :\n{$courseTitle}\n{$when}\n\n"
+        . "Pense à les valider ou à les refuser. Rien n'est fait automatiquement.\n\nTraiter les demandes : {$link}";
+
+    return [
+        'subject' => 'Rappel : ' . $pendingCount . ' demande' . ($pendingCount > 1 ? 's' : '') . ' en attente pour ' . $courseTitle,
+        'html'    => $html,
+        'text'    => $text,
+    ];
+}
+
+function sendCoachReminderMail(string $email, string $coachFirstname, string $courseTitle, string $when, int $pendingCount, string $link): bool
+{
+    return sendMail($email, $coachFirstname, buildCoachReminderMail($coachFirstname, $courseTitle, $when, $pendingCount, $link));
+}
+
 // Choisit le mail selon le changement : bienvenue coach, fin de coach, ou mail générique
 function buildRoleChangeMail(string $firstname, string $oldRole, string $newRole): array
 {

@@ -37,6 +37,22 @@
     });
 })();
 
+// Choix d'un motif : le champ libre n'apparaît (et n'est obligatoire) que pour « Autre »
+document.querySelectorAll('[data-reason]').forEach(function (field) {
+    const select = field.querySelector('select');
+    const other = field.querySelector('textarea');
+
+    function update() {
+        const isOther = select.value === 'autre';
+        other.hidden = !isOther;
+        other.required = isOther;
+        if (isOther) other.focus();
+    }
+
+    select.addEventListener('change', update);
+    other.hidden = select.value !== 'autre';
+});
+
 // Bouton "Retour" : le navigateur ressort la page de sa mémoire (bfcache),
 // on la recharge pour afficher l'état réel de la session (ex. après déconnexion)
 window.addEventListener('pageshow', function (event) {

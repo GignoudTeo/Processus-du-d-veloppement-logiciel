@@ -4,6 +4,14 @@
 require_once __DIR__ . '/../includes/accounts.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/coach_courses.php';
+require_once __DIR__ . '/../includes/coach_profile.php';
+require_once __DIR__ . '/../includes/coach_validation.php';
+require_once __DIR__ . '/../includes/course_slots.php';
+require_once __DIR__ . '/../includes/history.php';
+require_once __DIR__ . '/../includes/member_history.php';
+require_once __DIR__ . '/../includes/progression.php';
+require_once __DIR__ . '/../includes/reminders.php';
+require_once __DIR__ . '/../includes/statistics.php';
 require_once __DIR__ . '/../includes/coach_requests.php';
 require_once __DIR__ . '/../includes/form.php';
 require_once __DIR__ . '/../includes/mailer.php';
@@ -39,7 +47,10 @@ function createTestDatabase(): PDO
         poids DECIMAL(5,2) DEFAULT NULL,
         taille DECIMAL(5,2) DEFAULT NULL,
         telephone VARCHAR(20) DEFAULT NULL,
-        date_naissance DATE DEFAULT NULL
+        date_naissance DATE DEFAULT NULL,
+        nb_reservations INTEGER NOT NULL DEFAULT 0,
+        nb_reservations_rejetees INTEGER NOT NULL DEFAULT 0,
+        nb_absences INTEGER NOT NULL DEFAULT 0
     )');
     $db->exec('CREATE TABLE coachs (
         id_coach INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,16 +91,56 @@ function createTestDatabase(): PDO
         id_salle INTEGER NOT NULL REFERENCES salles(id_salle),
         date_debut TIMESTAMP NOT NULL,
         date_fin TIMESTAMP NOT NULL,
-        nb_places_max SMALLINT NOT NULL
+        nb_places_max SMALLINT NOT NULL,
+        rappel_envoye_le TIMESTAMP DEFAULT NULL
     )');
     $db->exec("CREATE TABLE reservations (
         id_reservation INTEGER PRIMARY KEY AUTOINCREMENT,
         id_cours INTEGER NOT NULL REFERENCES cours(id_cours) ON DELETE CASCADE,
         id_adherent INTEGER NOT NULL REFERENCES adherents(id_adherent) ON DELETE CASCADE,
         date_reservation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        statut VARCHAR(20) NOT NULL DEFAULT 'confirmee',
+        statut VARCHAR(20) NOT NULL DEFAULT 'en_attente',
+        motif TEXT DEFAULT NULL,
+        date_statut TIMESTAMP DEFAULT NULL,
         UNIQUE (id_cours, id_adherent)
     )");
+    $db->exec("CREATE TABLE historique_seances (
+        id_evenement INTEGER PRIMARY KEY AUTOINCREMENT,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('refus', 'desinscription', 'annulation')),
+        date_evenement TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        motif TEXT NOT NULL,
+        id_cours INTEGER NOT NULL,
+        titre_cours VARCHAR(150) NOT NULL,
+        date_cours TIMESTAMP NOT NULL,
+        nom_salle VARCHAR(100) DEFAULT NULL,
+        id_coach INTEGER DEFAULT NULL REFERENCES coachs(id_coach) ON DELETE SET NULL,
+        nom_coach VARCHAR(201) DEFAULT NULL,
+        id_adherent INTEGER DEFAULT NULL REFERENCES adherents(id_adherent) ON DELETE SET NULL,
+        nom_adherent VARCHAR(201) DEFAULT NULL
+    )");
+    $db->exec('CREATE TABLE passages (
+        id_passage INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_adherent INTEGER NOT NULL REFERENCES adherents(id_adherent) ON DELETE CASCADE,
+        entree TIMESTAMP NOT NULL,
+        sortie TIMESTAMP DEFAULT NULL CHECK (sortie IS NULL OR sortie > entree)
+    )');
+    $db->exec('CREATE TABLE progression (
+        id_mesure INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_adherent INTEGER NOT NULL REFERENCES adherents(id_adherent) ON DELETE CASCADE,
+        date_mesure DATE NOT NULL,
+        poids DECIMAL(5,2) NOT NULL,
+        taille DECIMAL(5,2) NOT NULL,
+        duree_seance SMALLINT NOT NULL
+    )');
+    $db->exec('CREATE TABLE incidents (
+        id_incident INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_coach INTEGER NOT NULL REFERENCES coachs(id_coach) ON DELETE CASCADE,
+        id_cours INTEGER NOT NULL,
+        titre_cours VARCHAR(150) NOT NULL,
+        date_cours TIMESTAMP NOT NULL,
+        date_signalement TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        description TEXT NOT NULL
+    )');
     $db->exec("CREATE TABLE demandes_coach (
         id_demande INTEGER PRIMARY KEY AUTOINCREMENT,
         id_compte INTEGER NOT NULL REFERENCES comptes(id_compte) ON DELETE CASCADE,

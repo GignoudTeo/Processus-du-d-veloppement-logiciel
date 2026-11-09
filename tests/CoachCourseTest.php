@@ -320,7 +320,7 @@ class CoachCourseTest extends TestCase
         $id = $this->create(1);
         [$accountId] = createTestAdherent($this->db);
         $adherentId  = $this->db->query("SELECT id_adherent FROM adherents WHERE id_compte = $accountId")->fetchColumn();
-        $this->db->prepare('INSERT INTO reservations (id_cours, id_adherent) VALUES (?, ?)')->execute([$id, $adherentId]);
+        $this->db->prepare("INSERT INTO reservations (id_cours, id_adherent, statut) VALUES (?, ?, 'confirmee')")->execute([$id, $adherentId]);
 
         $this->assertSame(1, (int) getCoachCourse($this->db, $id, 1)['nb_inscrits']);
 
@@ -340,17 +340,24 @@ class CoachCourseTest extends TestCase
         $this->assertSame(['motif' => 'Coach malade', 'error' => null], validateCancellationReason('  Coach malade '));
     }
 
-    public function testAnnulationRenvoieLesInscritsConfirmesAPrevenir(): void
+    private function cancel(int $courseId, int $coachId, string $now = self::BEFORE_COURSE): ?array
+    {
+        return cancelCourse($this->db, $courseId, $coachId, 'Coach malade', new DateTimeImmutable($now));
+    }
+
+    public function testAnnulationPrevientTousLesInscrits(): void
     {
         $id = $this->create(1);
         $this->register($id, 'Zoé', 'Martin');
-        $this->register($id, 'Alex', 'Bernard');
-        $this->register($id, 'Annulé', 'Durand', 'annulee');
+        $this->register($id, 'Alex', 'Bernard', 'en_attente');
         $this->register($id, 'Attente', 'Durand', 'liste_attente');
+        $this->register($id, 'Annulé', 'Durand', 'annulee');
+        $this->register($id, 'Refusé', 'Durand', 'rejetee');
 
-        $participants = cancelCourse($this->db, $id, 1);
+        $participants = $this->cancel($id, 1);
 
-        $this->assertSame(['Alex', 'Zoé'], array_column($participants, 'prenom'));
+        // Validés, en attente et en liste d'attente sont prévenus ; pas ceux qui étaient déjà partis ou refusés
+        $this->assertSame(['Alex', 'Attente', 'Zoé'], array_column($participants, 'prenom'));
         foreach ($participants as $participant) {
             $this->assertStringEndsWith('@example.com', $participant['email']);
         }
@@ -358,11 +365,32 @@ class CoachCourseTest extends TestCase
         $this->assertSame(0, (int) $this->db->query('SELECT COUNT(*) FROM reservations')->fetchColumn());
     }
 
+    public function testAnnulationEnregistreeDansLHistorique(): void
+    {
+        $id = $this->create(1);
+        $this->register($id, 'Zoé', 'Martin');
+
+        $this->cancel($id, 1);
+
+        $rows = $this->db->query("SELECT * FROM historique_seances WHERE type = 'annulation' ORDER BY id_evenement")->fetchAll();
+        // Une ligne pour le coach (sans adhérent), une par inscrit
+        $this->assertCount(2, $rows);
+        $this->assertNull($rows[0]['id_adherent']);
+        $this->assertSame('Zoé Martin', $rows[1]['nom_adherent']);
+        foreach ($rows as $row) {
+            $this->assertSame('Coach malade', $row['motif']);
+            $this->assertSame('HIIT du soir', $row['titre_cours']);
+            $this->assertSame('Marc Martin', $row['nom_coach']);
+            $this->assertSame('Studio 1', $row['nom_salle']);
+            $this->assertSame($id, (int) $row['id_cours']);
+        }
+    }
+
     public function testAnnulationSansInscrit(): void
     {
         $id = $this->create(1);
 
-        $this->assertSame([], cancelCourse($this->db, $id, 1));
+        $this->assertSame([], $this->cancel($id, 1));
         $this->assertNull(getCourse($this->db, $id));
     }
 
@@ -371,17 +399,26 @@ class CoachCourseTest extends TestCase
         $id = $this->create(1);
         $this->register($id, 'Alex', 'Bernard');
 
-        $this->assertNull(cancelCourse($this->db, $id, 2));
+        $this->assertNull($this->cancel($id, 2));
         $this->assertNotNull(getCourse($this->db, $id));
         $this->assertSame(1, (int) getCourse($this->db, $id)['nb_inscrits']);
+        $this->assertSame(0, (int) $this->db->query('SELECT COUNT(*) FROM historique_seances')->fetchColumn());
     }
 
     public function testSeanceDejaAnnulee(): void
     {
         $id = $this->create(1);
-        cancelCourse($this->db, $id, 1);
+        $this->cancel($id, 1);
 
-        $this->assertNull(cancelCourse($this->db, $id, 1));
+        $this->assertNull($this->cancel($id, 1));
+    }
+
+    public function testSeanceCommenceeNePeutPlusEtreAnnulee(): void
+    {
+        $id = $this->create(1);
+
+        $this->assertNull($this->cancel($id, 1, '2026-11-10 17:00:00+00'));
+        $this->assertNotNull(getCourse($this->db, $id));
     }
 
     // ---------- Liste des inscrits et retrait d'un participant ----------
